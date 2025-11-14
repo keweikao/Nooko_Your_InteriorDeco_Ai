@@ -1,0 +1,14 @@
+[project]
+name = "nooko-your-interiordeco-ai"
+version = "0.1.0"
+description = "Nooko: AI-powered workspace for interior design automation based on Spec Kit."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
