@@ -7,6 +7,9 @@ from datetime import datetime
 import io
 import asyncio
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
@@ -332,19 +335,19 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
         "answers": {}
     }
 
-    # Agent 信息
+    # Agent 信息 - Stephen (客戶經理)
     agent = {
-        "name": "施工主任",
-        "avatar": "🤖",
+        "name": "Stephen",
+        "avatar": "👨‍💼",
         "status": "idle"
     }
 
     # 初始問候消息
-    initial_message = """歡迎！我是您的專業施工主任。我已經了解到您正在進行一個裝修項目。
+    initial_message = """Hi! I'm Stephen, your dedicated project manager.
 
-讓我們通過對話深入了解您的需求。我會根據您的預算、空間和風格偏好，為您提供最專業的建議。
+I'm here to understand your interior design vision and ensure we create a space that's perfect for you.
 
-請告訴我，您的裝修項目主要涉及哪些區域？比如廚房、浴室、卧室或整體空間？"""
+What are the main areas you'd like to renovate? Kitchen, bathroom, bedroom, or the entire space?"""
 
     return InitConversationResponse(
         conversationId=conversation_id,
@@ -355,30 +358,36 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
 
 
 async def generate_agent_response(message: str, conversation_id: str) -> AsyncGenerator[str, None]:
-    """Generate Agent response with streaming - 生成 Agent 回應流"""
+    """Generate Agent response with streaming - 生成 Agent 回應流
 
-    # 模擬 Agent 回應，實際應使用 LLM 服務
-    # 在實際環境中，這應該調用 call_llm_streaming()
+    Uses mock_llm_service to generate intelligent responses based on user input.
+    This can be replaced with real LLM service integration (e.g., Gemini API).
+    """
 
-    responses = {
-        "預算": "感謝您告訴我預算範圍。這對我估算項目規模很有幫助。一般來說，預算將直接影響材料選擇和施工方案。\n\n根據您的預算，我會推薦合理的材料搭配，確保性價比最優。您還有其他特別關注的區域嗎？",
-        "廚房": "廚房裝修需要特別注意工序和材料。關鍵項目包括：\n\n1. 防水處理\n2. 電氣安全布線\n3. 通風系統\n4. 櫃體和台面\n\n這些都是不能省略的。您現在的廚房有特別的問題嗎？",
-        "浴室": "浴室是家中最容易出現濕氣問題的地方。我會確保：\n\n1. 完整的防水層\n2. 充分的通風\n3. 防滑安全措施\n4. 適當的排水設計\n\n這些是浴室裝修的基礎。您對現有浴室還滿意嗎？",
-        "風格": "好的，風格選擇確實能影響整體的視覺效果和施工成本。\n\n常見的風格包括：\n- 現代簡約\n- 北歐風格\n- 中式古典\n- 工業風格\n\n您傾向於哪種風格呢？",
-        "default": "感謝您的信息。根據您的回答，我有更清楚的了解了。\n\n為了給您最好的建議，我還需要了解：\n1. 您的時間安排\n2. 特殊需求或限制\n3. 對材料的偏好\n\n請分享您認為最重要的一點。"
-    }
+    # Use mock LLM service to generate a contextual response
+    prompt = f"As Stephen, a professional interior design project manager, respond to the client's message in a friendly and professional way. Be conversational and ask relevant follow-up questions to understand their needs better.\n\nClient message: {message}\n\nRespond naturally:"
 
-    # 選擇對應的回應
-    response_text = responses.get("default")
-    for key in responses.keys():
-        if key.lower() in message.lower() and key != "default":
-            response_text = responses[key]
-            break
+    try:
+        # Call mock LLM service to get a response
+        response = await mock_llm_service.generate_response(
+            prompt=prompt,
+            context={"conversation_id": conversation_id, "role": "stephen"}
+        )
 
-    # 逐字流式發送回應
+        # Get response text
+        if isinstance(response, dict):
+            response_text = response.get("summary", str(response))
+        else:
+            response_text = str(response)
+
+    except Exception as e:
+        logger.error(f"Error generating response: {e}")
+        response_text = "I appreciate you sharing that information. Could you tell me more about your renovation goals and preferences?"
+
+    # Stream response character by character
     for char in response_text:
         yield char
-        await asyncio.sleep(0.02)  # 模擬流式延遲
+        await asyncio.sleep(0.01)  # Adjust streaming speed
 
 
 @router.post("/projects/{project_id}/conversation/message-stream")
