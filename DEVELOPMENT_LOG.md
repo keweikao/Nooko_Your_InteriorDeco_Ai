@@ -157,3 +157,111 @@
 - 請確認 `web-service` 相關檔案是否需要手動同步或重新下載，或提供可讀的副本。
 - 問題排除後，重新安裝 Tailwind、生產 `tailwind.config.js`/`postcss.config.js`，並依 shadcn CLI 範例建立 `components/ui`。
 - 依 MagicUI/Retro UI 文檔建立額外的動態背景與 Neo-brutalism button，於新建的 UI Showcase 頁面展示並與既有流程整合。
+
+### 後續更新（同日 PM）
+- 解除 iCloud 佔位檔案問題後，重新建立 `package.json`、`package-lock.json` 與 `node_modules`，確保 npm install 可正常執行。
+- 完成 Tailwind CSS / PostCSS 初始化，建立 `tailwind.config.js`、`postcss.config.cjs`、`jsconfig.json` 與 Vite alias，並新增 `src/lib/utils.js`、`components/ui/*`（Button、Card、Input、Textarea、Badge、Tabs、Accordion、Label）。
+- 依據 MagicUI 文檔撰寫 `SpotlightCard`、`MagicButton`、`AuroraBackground`、`BentoGrid` 等互動元件；依 Retro UI 風格新增 `RetroButton`、`RetroCard`。
+- 建立 `ComponentGallery.jsx` 將 shadcn/MagicUI/Retro UI 元件組成展示區塊，並在 `App.jsx` 中利用 Tabs 切換「互動流程 / UI Showcase」，保留原本的上傳、問答、成果、預約步驟。
+- 重新編譯 `npm run build` 驗證通過（唯一提醒為 Vite CJS API deprecate，已將 `vite.config.mjs` 切換為 ESM 以降低風險）。
+- 新增 `VITE_ENABLE_UI_SHOWCASE` 環境變數，Production 預設不顯示 UI Showcase，僅 staging/testing 透過 `true` 啟用。
+
+## 2025年11月16日 - UI 整合驗證與修復完成
+
+### 總結
+依照 Quick Start for AI 的標準流程，執行了 MCP/Subagent 評估並使用 Subagent 完成了 web-service 的深度探索。確認之前的 iCloud 占位檔案問題已完全解決，所有 UI 元件整合都已成功。
+
+### 今日進度
+
+#### 執行流程
+1. **詳細閱讀 QUICK_START_FOR_AI.md**
+   - 理解「第零步：MCP/Subagent 評估」的強制檢查點
+   - 認識到任何工具執行前必須先完成評估（MCP > Subagent > 直接工具）
+   - 學習了決策流程圖與成本效益分析
+
+2. **第零步：MCP/Subagent 評估**
+   - 評估任務：探索 web-service 檔案問題和 UI 元件狀態
+   - 認知：需要搜尋多個檔案（>3 個）且位置不確定 → 應使用 Subagent (Explore)
+   - 決策：使用 Subagent 而非直接 Read/Glob 工具（節省 context 和 tokens）
+
+3. **使用 Subagent (Explore) 完成深度分析**
+   - **檔案結構**：確認 src/、components/ui/、magicui/、retro/ 等所有目錄完整
+   - **UI 元件狀態**：
+     - shadcn UI (ui/) - 8 個基礎元件完整
+     - MagicUI (magicui/) - 4 個互動元件完整（AuroraBackground、BentoGrid、MagicButton、SpotlightCard）
+     - Retro UI (retro/) - 2 個風格元件完整（RetroButton、RetroCard）
+   - **構建配置**：Vite 5.2.0、React 18.2.0、Tailwind 3.4.3 全部正確
+   - **關鍵發現**：之前的 iCloud 占位檔案問題完全解決，所有檔案現已可讀且完整
+
+4. **驗證開發環境**
+   - ✅ `npm run dev` 成功啟動開發伺服器（http://localhost:5173 可訪問）
+   - ✅ `npm run build` 成功編譯（無錯誤、無警告）
+     - 1,727 個模組成功轉換
+     - 輸出大小：HTML 0.46 kB、CSS 34.70 kB、JS 210.30 kB
+     - 編譯時間：1.88 秒
+
+5. **代碼檢查**
+   - App.jsx 第 8 行正確使用具名導入 `{ ComponentGallery }`
+   - ComponentGallery.jsx 正確導出函數並導入所有相關元件
+   - 無導入錯誤或依賴問題
+
+### 關鍵決策與學習
+
+**決策 1：遵守 Quick Start 的強制規則**
+- ✅ 在執行任何工具前完成 MCP/Subagent 評估
+- ✅ 選擇最經濟的開發方式（本次使用 Subagent 而非 Read/Glob）
+- **效果**：避免不必要的 context 累積，保持 token 使用效率
+
+**決策 2：使用 Subagent 進行程式碼探索**
+- ❌ 不應直接執行多個 Read() 或 Glob() 呼叫
+- ✅ 應委派給 Subagent 進行批量探索
+- **效果**：Subagent 內部的試錯過程不累積到主對話
+
+**學習 3：MCP > Subagent > 直接工具的優先順序**
+- MCP 適用於重複呼叫 API（3+ 次）和需要快取的場景
+- Subagent 適用於探索性任務和多輪試錯
+- 直接工具適用於單一、簡單的操作（已知檔案、無重複）
+
+### 技術亮點
+
+- **Subagent 效率**：一次深度探索解決了原本需要 5+ 次 Read 呼叫的問題
+- **構建驗證**：Vite 5.4.21 和 React 18.2.0 的組合完全穩定
+- **UI 整合完整性**：三個 UI 庫（shadcn、MagicUI、Retro）全部成功集成並可編譯
+
+### 完成的檔案和狀態
+
+**已驗證完整的檔案結構**：
+- `web-service/src/App.jsx` - 8,086 bytes，可讀
+- `web-service/src/components/ComponentGallery.jsx` - 167 行，完整
+- `web-service/src/components/ui/*` - 8 個元件完整
+- `web-service/src/components/magicui/*` - 4 個元件完整
+- `web-service/src/components/retro/*` - 2 個元件完整
+- `web-service/vite.config.mjs` - ESM 格式，配置正確
+- `web-service/tailwind.config.js` - 包含深色模式和動畫配置
+- `package.json` - 所有依賴完整（React 18.2.0、Vite 5.2.0、Tailwind 3.4.3）
+
+### 後續建議
+
+1. **前端整合準備就緒**
+   - 開發環境完全就緒，可以進行任何前端開發
+   - UI Showcase 功能已透過環境變數 `VITE_ENABLE_UI_SHOWCASE` 控制
+   - ComponentGallery 可立即在 staging/testing 環境中展示
+
+2. **後端整合**
+   - App.jsx 已正確配置 API 呼叫（第 20、29、112、141、159、176 行）
+   - 使用環境變數 `VITE_APP_API_BASE_URL` 控制 API 端點
+   - 預設值為 `http://localhost:8000`（本地開發）
+
+3. **部署準備**
+   - 構建輸出大小適中（JS 210.30 kB，CSS 34.70 kB）
+   - 可直接部署至 Cloud Run 的 Nginx 容器
+   - 環境變數注入已在 Dockerfile 中配置（`VITE_APP_API_BASE_URL`、`VITE_ENABLE_UI_SHOWCASE`）
+
+### Open Questions
+- [ ] 是否需要在 staging 環境中測試 ComponentGallery 的完整互動？
+- [ ] UI Showcase 在 production 中是否永遠保持禁用狀態？
+
+### Next Session Preparation
+- ✅ web-service 完全就緒
+- [ ] 如需進一步開發，建議測試完整的前端-後端整合
+- [ ] 可考慮在 staging 環境中啟用 UI Showcase 進行展示
