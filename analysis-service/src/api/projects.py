@@ -11,7 +11,7 @@ import json
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
 from src.services.pdf_service import generate_pdf_report
-from src.services.llm_service import call_llm_streaming
+from src.services.llm_service import mock_llm_service
 
 router = APIRouter()
 
