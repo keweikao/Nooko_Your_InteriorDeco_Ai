@@ -22,7 +22,7 @@ const InteractiveQuestionnaire = ({ projectId, apiBaseUrl, onComplete }) => {
     setError(null);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/conversation/start`, {
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/conversation/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -56,7 +56,7 @@ const InteractiveQuestionnaire = ({ projectId, apiBaseUrl, onComplete }) => {
     setError(null);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/conversation/answer`, {
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/conversation/answer`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

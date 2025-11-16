@@ -27,7 +27,7 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
     formData.append('file', selectedFile);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/upload`, {
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/upload`, {
         method: 'POST',
         body: formData,
         // Note: Do NOT set Content-Type header for FormData, browser sets it automatically

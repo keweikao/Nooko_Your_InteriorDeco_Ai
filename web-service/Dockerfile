@@ -16,6 +16,10 @@ COPY . .
 ARG VITE_APP_API_BASE_URL
 ENV VITE_APP_API_BASE_URL=${VITE_APP_API_BASE_URL}
 
+# Disable UI Showcase in production by default
+ARG VITE_ENABLE_UI_SHOWCASE=false
+ENV VITE_ENABLE_UI_SHOWCASE=${VITE_ENABLE_UI_SHOWCASE}
+
 # Build the application
 RUN npm run build
 
