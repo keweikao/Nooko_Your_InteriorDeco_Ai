@@ -259,9 +259,108 @@
 
 ### Open Questions
 - [ ] 是否需要在 staging 環境中測試 ComponentGallery 的完整互動？
-- [ ] UI Showcase 在 production 中是否永遠保持禁用狀態？
+- [x] UI Showcase 在 production 中是否永遠保持禁用狀態？ → ✅ 已實裝，預設禁用
 
 ### Next Session Preparation
 - ✅ web-service 完全就緒
 - [ ] 如需進一步開發，建議測試完整的前端-後端整合
 - [ ] 可考慮在 staging 環境中啟用 UI Showcase 進行展示
+
+---
+
+## 2025年11月16日 - API 連接問題修復 (续)
+
+### 總結
+用戶反饋兩個生產環境的問題：
+1. UI Showcase 內容不應該出現在生產網站
+2. 開始使用按鈕無法點擊（後端連接失敗）
+
+本次會話識別並修復了根本原因。
+
+### 問題分析與修復
+
+#### 問題 1：UI Showcase 在生產環境仍然可見
+
+**根本原因**：
+- Cloud Build 沒有明確傳遞 `VITE_ENABLE_UI_SHOWCASE` 環境變數
+- Dockerfile 也沒有設置該變數的默認值
+- 前端代碼依賴於環境變數 === 'true'，但未定義時為 undefined
+
+**修復方案**：
+1. Dockerfile 中添加 `ARG VITE_ENABLE_UI_SHOWCASE=false` 作為預設值
+2. Cloud Build 中明確傳遞 `--build-arg VITE_ENABLE_UI_SHOWCASE=false`
+3. 確保生產環境中 UI Showcase 總是禁用
+
+#### 問題 2：後端連接失敗（開始使用按鈕無法點擊）
+
+**根本原因**：
+- Cloud Build 配置（第 60 行）將 `VITE_APP_API_BASE_URL` 設置為 `${ANALYSIS_URL}/api`
+- 但前端代碼在 4 個地方重複添加了 `/api` 前綴
+- 導致實際呼叫變成 `http://backend:8000/api/api/projects` → 404 Not Found
+
+**修復清單**：
+1. `App.jsx` 第 29 行：`/api/projects` → `/projects`
+2. `FileUpload.jsx` 第 30 行：`/api/projects/.../upload` → `/projects/.../upload`
+3. `InteractiveQuestionnaire.jsx` 第 25 行：`/api/projects/.../conversation/start` → `/projects/.../conversation/start`
+4. `InteractiveQuestionnaire.jsx` 第 59 行：`/api/projects/.../conversation/answer` → `/projects/.../conversation/answer`
+
+#### Cloud Build 配置最佳化
+
+**改進項目**：
+1. 添加新步驟：動態獲取 analysis-service 的部署 URL
+   ```bash
+   gcloud run services describe analysis-service --format='value(status.url)'
+   ```
+2. 自動拼接正確的 API 端點：`${ANALYSIS_URL}/api`
+3. 刪除硬編碼的 `_API_BASE_URL` substitution
+4. 避免部署後期變更環境變數，所有參數在構建時注入
+
+### 技術洞察
+
+★ Insight ─────────────────────────────────────
+API 路由的重複是一個常見的前端-後端集成陷阱。當後端提供者明確將 `/api` 前綴包含在 base URL 中時，前端開發者容易假設還需要再次添加。解決方案是：
+
+1. **明確文檔化**：後端應清楚說明 base URL 是否已包含 `/api`
+2. **前端檢查**：前端應驗證 base URL 的格式（例如，確保不以 `/api` 結尾）
+3. **統一約定**：團隊應決定統一的慣例（base URL 到服務層 vs 到 API 端點）
+
+本案例採用「base URL 到 API 層」的約定，即 `${ANALYSIS_URL}/api` 已經是完整的 API 端點前綴。
+─────────────────────────────────────────────────
+
+### 驗證與測試
+
+✅ **構建驗證**：
+- `npm run build` 成功
+- 1,727 個模組轉換成功
+- 無錯誤或警告
+
+✅ **配置驗證**：
+- Dockerfile 現在明確設置 UI Showcase 為禁用
+- Cloud Build 正確傳遞所有必要的環境變數
+- API 呼叫路徑已統一修正
+
+### 預期效果
+
+部署此更新後：
+1. **生產網站**：不再出現 UI Showcase 相關內容
+2. **API 連接**：前端 → 後端的所有呼叫應正確路由到 `/api/projects/*` 端點
+3. **開始使用按鈕**：應該能成功建立新專案，`projectId` 會正確顯示
+4. **完整工作流**：上傳→提問→結果→預約應該能完整執行
+
+### 已提交的變更
+
+Commit: `a950d90` - 修復生產環境 API 連接問題和 UI Showcase 配置
+
+**修改的檔案**：
+- `cloudbuild.yaml` - 優化 Cloud Build 流程，動態獲取後端 URL
+- `web-service/Dockerfile` - 設置 UI Showcase 預設禁用
+- `web-service/src/App.jsx` - 移除重複的 /api 前綴
+- `web-service/src/components/FileUpload.jsx` - 移除重複的 /api 前綴
+- `web-service/src/components/InteractiveQuestionnaire.jsx` - 移除重複的 /api 前綴（2 處）
+
+### Next Session Preparation
+
+- [x] UI Showcase 生產環境問題 ✅ 已修復
+- [x] API 連接問題 ✅ 已修復
+- [ ] 建議在 staging/production 環境中驗證修復結果
+- [ ] 可考慮新增完整的 e2e 測試以確保工作流程
