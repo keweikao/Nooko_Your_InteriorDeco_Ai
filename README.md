@@ -72,6 +72,16 @@ npm install
 npm run dev
 ```
 
+#### UI Showcase（僅限 Staging）
+
+前端有一個實驗性的 MagicUI / shadcn 元件展示頁。預設不會顯示，只有在 staging/測試環境需要展示元件時，才在建置或部署前設定：
+
+```bash
+export VITE_ENABLE_UI_SHOWCASE=true
+```
+
+Cloud Run 部署時可透過 build arg / ENV 將此變數設為 `true`，正式環境請保持預設值（或不設定）以僅顯示互動流程。
+
 ### 3. 瀏覽應用程式
 
 當兩個服務都成功啟動後，您可以開啟瀏覽器，進入前端服務的網址（通常是 `http://127.0.0.1:5173`）來查看應用程式的 UI。

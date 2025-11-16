@@ -52,8 +52,8 @@ test_*.py
 .DS_Store
 .cache/
 
-# Web service (deploy separately)
-web-service/
+# Web service node_modules already excluded above
+# web-service/ - REMOVED: Need to include web-service for deployment
 
 # Development files
 DEVELOPMENT_LOG.md

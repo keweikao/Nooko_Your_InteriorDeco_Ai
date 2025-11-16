@@ -1,13 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import './FileUpload.css';
 
 function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
 
   const handleFileChange = (event) => {
-    setSelectedFile(event.target.files[0]);
-    setUploadStatus('');
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setUploadStatus('');
+    }
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file && ['application/pdf', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'image/jpeg', 'image/png'].includes(file.type)) {
+      setSelectedFile(file);
+      setUploadStatus('');
+    } else {
+      setUploadStatus('請上傳有效的檔案格式（PDF、Excel 或圖片）');
+    }
   };
 
   const handleUpload = async () => {
@@ -22,6 +53,7 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
 
     setUploadStatus('上傳中...');
     setUploading(true);
+    setUploadProgress(0);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -30,15 +62,14 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
       const response = await fetch(`${apiBaseUrl}/projects/${projectId}/upload`, {
         method: 'POST',
         body: formData,
-        // Note: Do NOT set Content-Type header for FormData, browser sets it automatically
       });
 
       if (response.ok) {
         const data = await response.json();
         setUploadStatus(`✓ ${data.message}`);
-        setSelectedFile(null); // Clear selected file after successful upload
+        setUploadProgress(100);
+        setSelectedFile(null);
 
-        // Call the success callback
         if (onUploadSuccess) {
           setTimeout(() => {
             onUploadSuccess();
@@ -57,46 +88,74 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
   };
 
   return (
-    <div style={{ marginTop: '20px', paddingTop: '20px' }}>
-      <div style={{
-        border: '2px dashed #ccc',
-        borderRadius: '8px',
-        padding: '30px',
-        textAlign: 'center',
-        backgroundColor: '#f9f9f9'
-      }}>
+    <div className="file-upload-container">
+      <div
+        className={`file-upload-zone ${dragActive ? 'active' : ''} ${selectedFile ? 'selected' : ''}`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+        onClick={() => fileInputRef.current?.click()}
+      >
         <input
+          ref={fileInputRef}
           type="file"
           onChange={handleFileChange}
           accept=".pdf,.xlsx,.xls,.jpg,.jpeg,.png"
-          style={{ marginBottom: '15px' }}
+          style={{ display: 'none' }}
         />
-        <br />
+
+        <div className="upload-icon">
+          {selectedFile ? '✓' : '📁'}
+        </div>
+
+        <div className="upload-text">
+          {selectedFile ? (
+            <>
+              <p className="file-name">{selectedFile.name}</p>
+              <p className="file-size">({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)</p>
+            </>
+          ) : (
+            <>
+              <p className="main-text">拖拽報價單到此處</p>
+              <p className="sub-text">或點擊選擇檔案</p>
+              <p className="format-hint">支援 PDF、Excel 或圖片格式</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {uploading && (
+        <div className="progress-container">
+          <div className="progress-bar">
+            <div className="progress-fill" style={{ width: `${uploadProgress}%` }}></div>
+          </div>
+          <p className="progress-text">上傳中... {uploadProgress}%</p>
+        </div>
+      )}
+
+      <div className="upload-actions">
         <button
+          className={`upload-button ${uploading ? 'loading' : ''}`}
           onClick={handleUpload}
           disabled={!selectedFile || !projectId || uploading}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: (!selectedFile || !projectId || uploading) ? '#ccc' : '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: (!selectedFile || !projectId || uploading) ? 'not-allowed' : 'pointer',
-            fontSize: '16px'
-          }}
         >
-          {uploading ? '上傳中...' : '上傳報價單'}
+          {uploading ? (
+            <>
+              <span className="loading-spinner"></span>
+              上傳中...
+            </>
+          ) : (
+            '上傳報價單 →'
+          )}
         </button>
-        {uploadStatus && (
-          <p style={{
-            marginTop: '15px',
-            color: uploadStatus.includes('失敗') ? '#d32f2f' : '#4CAF50',
-            fontWeight: '500'
-          }}>
-            {uploadStatus}
-          </p>
-        )}
       </div>
+
+      {uploadStatus && (
+        <div className={`upload-status ${uploadStatus.includes('失敗') ? 'error' : 'success'}`}>
+          {uploadStatus}
+        </div>
+      )}
     </div>
   );
 }
