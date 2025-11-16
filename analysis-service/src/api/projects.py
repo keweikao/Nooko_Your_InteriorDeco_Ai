@@ -1,11 +1,14 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel
 import uuid
 from datetime import datetime
+import io
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
+from src.services.pdf_service import generate_pdf_report
 
 router = APIRouter()
 
@@ -24,6 +27,7 @@ class StartConversationResponse(BaseModel):
     project_id: str
     current_question: Dict[str, Any]
     progress: Dict[str, Any]
+    agent_name: str = "Stephen" # Add agent_name
 
 class AnswerRequest(BaseModel):
     question_id: str
@@ -34,6 +38,7 @@ class AnswerResponse(BaseModel):
     next_question: Optional[Dict[str, Any]]
     is_complete: bool
     message: Optional[str]
+    agent_name: str = "Stephen" # Add agent_name
 
 class TranslateNeedRequest(BaseModel):
     consumer_need: str
@@ -124,7 +129,8 @@ async def start_conversation(project_id: str) -> StartConversationResponse:
     return StartConversationResponse(
         project_id=project_id,
         current_question=first_question_dict,
-        progress=progress
+        progress=progress,
+        agent_name="Stephen"
     )
 
 @router.post("/projects/{project_id}/conversation/answer", response_model=AnswerResponse)
@@ -188,7 +194,8 @@ async def submit_answer(project_id: str, answer_request: AnswerRequest) -> Answe
         accepted=True,
         next_question=next_question_dict,
         is_complete=is_complete,
-        message="感謝您的回答！" if not is_complete else "問卷已完成，正在為您準備裝修建議..."
+        message="感謝您的回答！" if not is_complete else "問卷已完成，正在為您準備裝修建議...",
+        agent_name="Stephen"
     )
 
 @router.post("/projects/{project_id}/translate-need")
@@ -253,3 +260,29 @@ async def generate_construction_spec(project_id: str) -> Dict[str, Any]:
         "construction_spec": construction_spec,
         "generated_at": datetime.utcnow().isoformat()
     }
+
+@router.get("/projects/{project_id}/analysis-messages")
+async def get_analysis_messages(project_id: str) -> List[str]:
+    """Returns a list of messages to display during AI analysis."""
+    # For POC, return static messages. In a real scenario, these might be dynamic.
+    return [
+        "正在為您交叉比對超過 5,000 項工種的市場均價...",
+        "檢查您的報價單中是否存在常見的工程遺漏項目...",
+        "根據您的需求，智慧分析最適合的材料與工法...",
+        "評估潛在風險，確保您的裝潢過程順利無憂...",
+        "生成客製化的設計建議與風格參考圖...",
+        "整合專業統包商與設計師的建議，為您打造專屬藍圖..."
+    ]
+
+class ReportRequest(BaseModel):
+    analysis_data: Dict[str, Any]
+
+@router.post("/projects/{project_id}/generate-pdf-report")
+async def generate_pdf_report_endpoint(project_id: str, request: ReportRequest):
+    """Generate and return a PDF report."""
+    if project_id not in projects_db:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    pdf_bytes = generate_pdf_report(request.analysis_data)
+    
+    return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf")

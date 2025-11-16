@@ -9,6 +9,7 @@
 - **MCP Server**：所有 AI 模型皆可使用（Claude, GPT, Gemini 等）✅
 - **Subagent (Task tool)**：僅限 Claude 專屬功能 ⚠️
 - 非 Claude 模型請優先使用 MCP Server，或告知使用者功能限制
+- **回覆語言**：所有對話與紀錄一律以繁體中文回應，必要時可穿插英文術語
 
 ---
 

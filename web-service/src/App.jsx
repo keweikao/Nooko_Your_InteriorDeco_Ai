@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import FileUpload from './components/FileUpload';
 import InteractiveQuestionnaire from './components/InteractiveQuestionnaire';
+import ConversationUI from './components/ConversationUI';
 import FinalResult from './components/FinalResult';
 import BookingForm from './components/BookingForm';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
 import { Button as UiButton } from './components/ui/button';
 import { ComponentGallery } from './components/ComponentGallery';
+import StyleGuide from './components/StyleGuide'; // Import StyleGuide component
+import ProgressDashboard from './components/ProgressDashboard'; // Import ProgressDashboard
 import './App.css';
 
 function App() {
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [projectId, setProjectId] = useState(null);
-  const [currentStep, setCurrentStep] = useState('welcome'); // welcome, upload, questionnaire, results, booking
+  const [currentStep, setCurrentStep] = useState('welcome'); // welcome, upload, questionnaire, analysis, results, booking
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [projectBrief, setProjectBrief] = useState(null);
 
@@ -51,10 +54,13 @@ function App() {
     // Trigger Agent1 (Contractor Agent) to start processing
     triggerAgent1(brief);
 
-    // Move to results after Agent1 completes
+    // Move to analysis step after questionnaire completes
+    setCurrentStep('analysis');
+
+    // Simulate analysis time, then move to results
     setTimeout(() => {
       setCurrentStep('results');
-    }, 2000);
+    }, 5000); // Simulate 5 seconds of analysis
   };
 
   const triggerAgent1 = async (brief) => {
@@ -153,23 +159,19 @@ function App() {
 
       {currentStep === 'questionnaire' && (
         <div className="questionnaire-section">
-          <div className="section-header">
-            <div className="step-indicator">步驟 2/3</div>
-            <h2>需求訪談</h2>
-            <p className="section-description">
-              讓我們透過幾個問題，深入了解您的裝潢需求。
-              這些資訊將幫助我們為您產出最精準的報價與建議。
-            </p>
-          </div>
           {projectId && (
-            <InteractiveQuestionnaire
+            <ConversationUI
               projectId={projectId}
               apiBaseUrl={apiBaseUrl}
-              onComplete={handleQuestionnaireComplete}
+              onConversationComplete={(result) => {
+                setProjectBrief(result.briefing || {});
+                setCurrentStep('results');
+              }}
             />
           )}
         </div>
       )}
+
 
       {currentStep === 'results' && (
         <div className="results-section">
@@ -226,19 +228,28 @@ function App() {
       <main className="main-content">
         {isShowcaseEnabled ? (
           <Tabs defaultValue="flow" className="w-full space-y-6">
-            <TabsList className="mx-auto grid w-full max-w-md grid-cols-2">
+            <TabsList className="mx-auto grid w-full max-w-md grid-cols-3"> {/* Changed grid-cols-2 to grid-cols-3 */}
               <TabsTrigger value="flow">互動流程</TabsTrigger>
               <TabsTrigger value="gallery">UI 組件展示</TabsTrigger>
+              <TabsTrigger value="styleguide">Style Guide</TabsTrigger> {/* New TabsTrigger */}
             </TabsList>
             <TabsContent value="flow">
+              {/* Render ProgressDashboard only for the main flow */}
+              {currentStep !== 'welcome' && <ProgressDashboard currentStepId={currentStep} />}
               {flowContent}
             </TabsContent>
             <TabsContent value="gallery">
               <ComponentGallery />
             </TabsContent>
+            <TabsContent value="styleguide"> {/* New TabsContent */}
+              <StyleGuide />
+            </TabsContent>
           </Tabs>
         ) : (
-          flowContent
+          <>
+            {currentStep !== 'welcome' && <ProgressDashboard currentStepId={currentStep} />}
+            {flowContent}
+          </>
         )}
       </main>
 

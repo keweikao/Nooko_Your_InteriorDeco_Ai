@@ -28,3 +28,4 @@ pytest-asyncio
 google-cloud-firestore>=2.16.0
 google-auth>=2.37.0
 python-multipart
+reportlab

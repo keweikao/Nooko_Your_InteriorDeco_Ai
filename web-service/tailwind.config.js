@@ -51,6 +51,12 @@ module.exports = {
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))"
+        },
+        // Nooko Brand Colors
+        nooko: {
+          white: "hsl(var(--color-brand-white))",
+          charcoal: "hsl(var(--color-brand-charcoal))",
+          terracotta: "hsl(var(--color-brand-terracotta))"
         }
       },
       borderRadius: {
@@ -59,7 +65,8 @@ module.exports = {
         sm: "calc(var(--radius) - 4px)"
       },
       fontFamily: {
-        sans: ["var(--font-sans)", ...fontFamily.sans]
+        sans: ["var(--font-sans)", ...fontFamily.sans],
+        playfair: ["Playfair Display", ...fontFamily.serif]
       },
       keyframes: {
         "accordion-down": {

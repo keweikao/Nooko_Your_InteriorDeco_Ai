@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -38,6 +39,11 @@
   --color-bg-light: #f5f7fa;
   --color-bg-lighter: #fafbfc;
   --color-border-light: #e0e6ed;
+
+  /* 新增品牌顏色 */
+  --color-brand-white: 30 25% 96%; /* #F8F5F2 */
+  --color-brand-charcoal: 218 19% 20%; /* #333333 */
+  --color-brand-terracotta: 8 74% 60%; /* #E2725B */
 
   /* Spacing 系統 (基數 8px) */
   --spacing-xs: 0.25rem;      /* 4px */

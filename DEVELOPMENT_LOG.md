@@ -364,3 +364,32 @@ Commit: `a950d90` - 修復生產環境 API 連接問題和 UI Showcase 配置
 - [x] API 連接問題 ✅ 已修復
 - [ ] 建議在 staging/production 環境中驗證修復結果
 - [ ] 可考慮新增完整的 e2e 測試以確保工作流程
+
+---
+
+## 2025年11月16日 - 建置專案搜尋 MCP Server
+
+### 總結
+- 依照 `QUICK_START_FOR_AI.md` 的規範執行 MCP/Subagent 評估後，確認現有 `mcp_config` 只涵蓋其他專案，於是著手打造專屬於本 repo 的搜尋 MCP Server，讓後續 AI 可以透過工具快速定位程式碼與文件片段。
+
+### 目標與成果
+- [x] 建立 `project_search` MCP Server，透過 ripgrep 搜尋專案並回傳含行號的摘要。
+- [x] 提供可調整的 `max_results`、`context_lines`、`file_globs`、`case_sensitive` 參數，以符合 token 最小化策略。
+- [x] 補充 README，說明如何在 `~/.claude/mcp_config.json` 註冊這個 server 與基本使用範例。
+
+### 變更檔案
+- `tools/project_search/search.py`：串接 ripgrep 並回傳結構化結果（路徑、行號、snippet、match 內容）。
+- `tools/project_search/mcp_server.py`：宣告 `project_search` MCP tool 的 schema，並將請求導向 `search` 函式。
+- `tools/project_search/README.md`：提供設定教學與使用範例。
+- `tools/project_search/__init__.py`：初始化套件。
+- `QUICK_START_FOR_AI.md`：新增「所有回覆須以繁體中文撰寫」的強制規範，確保未來 AI 輸出一致。
+
+### 驗證
+- 透過 `python3 - <<'PY' ...` 呼叫 `search()`，以 `ProjectBrief` 關鍵字驗證能回傳行號與 snippet，確認工具行為符合預期。
+
+### 次要觀察
+- `PROJECT_SEARCH_ROOT` 預設為 repo 根目錄，如需在其他路徑重用此工具，可於環境變數覆寫。
+- 工具依賴 `rg`，若於全新環境啟用需先安裝 ripgrep。
+
+### Next Session Preparation
+- [ ] 將 `project_search` server 註冊進 `~/.claude/mcp_config.json`（�

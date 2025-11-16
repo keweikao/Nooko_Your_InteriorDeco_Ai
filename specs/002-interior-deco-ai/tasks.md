@@ -1,116 +1,68 @@
-# Tasks: 裝潢 AI 夥伴
+### **開發任務清單：裝潢 AI 夥伴 - UI/UX 優化 (更新 Agent 名稱)**
 
-**Input**: `specs/002-interior-deco-ai/spec.md`
-**Prerequisites**: `plan.md`, `spec.md`
+#### **Phase 1: 核心體驗與品牌識別 (P1 - 優先執行)**
 
-## Format: `[ID] [P?] [Story] Description`
+這個階段的目標是快速建立網站的視覺基礎和核心互動框架。
 
-- **[P]**: 可並行開發 (Parallel)
-- **[Story]**: 關聯的使用者故事 (e.g., US1, US2)
+*   **Task 01: [POC/Frontend] 建立核心視覺與品牌識別**
+    *   **目標**：驗證設計系統在程式碼中的可行性。
+    *   **子任務**:
+        *   1.1: 導入並配置 CSS 框架 (建議 Tailwind CSS)，定義全域樣式。
+        *   1.2: 在設定檔中定義品牌色票：米白 (#F8F5F2), 炭灰 (#333333), 赤陶色 (#E2725B)。
+        *   1.3: 引入並設定網站字體：標題 (Playfair Display), 內文 (Inter)。
+        *   1.4: **(POC)** 建立一個包含基本元件（按鈕、標題、內文）的樣式展示頁面 (Style Guide)，確保設計風格統一。
 
----
+*   **Task 02: [Frontend] 建構主要頁面與核心元件**
+    *   **目標**：打造使用者旅程的起點與主要互動區塊。
+    *   **子任務**:
+        *   2.1: 建立應用程式的基礎佈局，包含頁首、內容區與頁尾。
+        *   2.2: 開發「檔案上傳」元件，包含明確的行動呼籲 (CTA) 及資料隱私承諾文字。
+        *   2.3: 開發「對話視窗」的 UI 骨架，包含訊息顯示區、使用者輸入框與發送按鈕。
 
-## Phase 1: Setup (專案初始化)
+*   **Task 03: [POC/Frontend] 開發「進度儀表板」元件**
+    *   **目標**：驗證即時更新的流程視覺化，以降低使用者焦慮。
+    *   **子任務**:
+        *   3.1: 設計並開發一個響應式的步驟條 (Stepper) 元件，顯示五大核心流程。
+        *   3.2: 透過狀態管理 (State Management)，讓元件能根據當前應用程式的狀態，動態高亮顯示目前步驟。
+        *   3.3: 將此元件整合至主介面，確保在使用者旅程中清晰可見。
 
-**Purpose**: 建立專案基礎結構與環境。
+#### **Phase 2: 專業形象與信任感強化 (P2 - 接著執行)**
 
-- [ ] T001 [P] [Setup] 根據 `plan.md` 建立 `analysis-service` 和 `web-service` 的目錄結構。
-- [ ] T002 [P] [Setup] 在 `analysis-service` 中初始化 Python (FastAPI) 專案，並安裝 `pdfplumber`, `openpyxl` 等依賴。
-- [ ] T003 [P] [Setup] 在 `web-service` 中初始化前端專案 (例如 React/Vue/Angular)。
-- [ ] T004 [P] [Setup] 配置 `pyproject.toml` 和 `requirements.txt`。
+此階段專注於將 AI 的「黑盒子」轉化為可被感知的專業服務。
 
----
+*   **Task 04: [Frontend/Backend] 實作 AI 思考過程的具象化**
+    *   **目標**：將等待時間轉化為價值的展示。
+    *   **子任務**:
+        *   4.1: **(POC)** 設計並開發「藍圖描繪」的載入動畫 (建議使用 Lottie/SVG)。
+        *   4.2: (Backend) 在後端 API 中定義一組「AI 思考中」的提示訊息列表。
+        *   4.3: (Frontend) 當前端等待後端回應時，從後端獲取並輪播顯示這些提示訊息。
 
-## Phase 2: Foundational (核心基礎建設)
+*   **Task 05: [Frontend/Backend] 導入 Agent 人格化形象**
+    *   **目標**：讓使用者感覺在與一個專業團隊而非冰冷的機器對話。
+    *   **子任務**:
+        *   5.1: 設計 **Stephen**, **Henry**, **Vivian** 的簡潔抽象頭像。
+        *   5.2: (Frontend) 更新對話視窗，使每條訊息都能顯示對應 Agent 的頭像與名稱。
+        *   5.3: (Backend) 確保 API 回應的資料結構中，包含訊息來源 Agent 的識別碼。
 
-**Purpose**: 建立所有 Agent 和使用者故事都依賴的核心服務。
+*   **Task 06: [POC/Backend] 開發「精美藍圖報告」PDF 生成功能**
+    *   **目標**：驗證將結構化數據轉換為高品質、設計精美的 PDF 報告的能力。
+    *   **子任務**:
+        *   6.1: 使用 Python 的 PDF 生成函式庫 (如 WeasyPrint 或 ReportLab) 建立一個 POC。
+        *   6.2: 設計報告的版面，包含封面、章節、圖表，並用品牌點綴色突出「風險」與「缺失項目」。
+        *   6.3: 建立一個 API 端點，接收分析結果的 JSON 數據，並回傳生成的 PDF 檔案。
 
-- [ ] T005 [Backend] 在 `analysis-service/src/models/` 中定義 Firestore 的資料模型 (e.g., Project, Quote, Interaction)。
-- [ ] T006 [Backend] 設定 FastAPI 的基本 API 路由結構 (`analysis-service/src/api/`)。
-- [ ] T007 [Backend] 建立一個 Agent 抽象基類 (`analysis-service/src/agents/base_agent.py`)。
-- [ ] T008 [Backend] 建立 Agent 之間傳遞「專案簡報 (Project Brief)」的標準化資料結構。
-- [ ] T009 [Backend] 建立一個任務調度服務雛形，用於 Agent 1 觸發 Agent 2 和 3。
+#### **Phase 3: 細節打磨與商業轉換 (P3 - 後期優化)**
 
----
+此階段專注於優化體驗的流暢度，並完成商業目標的閉環。
 
-## Phase 3: User Story 1 - 上傳報價單
+*   **Task 07: [Frontend] 建立「真人專家介紹」元件**
+    *   **目標**：將線上的信任感順利轉移至線下服務。
+    *   **子任務**:
+        *   7.1: 設計一個元件，用於展示真人專家的照片、姓名、資歷及服務理念。
+        *   7.2: 在使用者旅程的最後一步，優雅地展示此元件及「預約免費丈量」的按鈕。
 
-**Goal**: 讓使用者能上傳檔案，並由 Agent 1 開始互動。
-
-- [ ] T010 [P] [US1] [Frontend] 在 `web-service` 中建立一個接受 PDF/Excel 的檔案上傳元件。
-- [ ] T011 [US1] [Backend] 在 `analysis-service/src/api/` 中建立 `/upload` 端點，用於接收檔案。
-- [ ] T012 [US1] [Backend] 在 `analysis-service/src/agents/` 中實作「客戶經理 Agent」的初始邏輯，接收檔案後回傳歡迎訊息。
-- [ ] T013 [US1] [Backend] 實作 PDF (`pdfplumber`) 和 Excel (`openpyxl`) 的基本解析服務，並儲存至 Firestore。
-
----
-
-## Phase 4: User Story 2 - 互動式需求探索
-
-**Goal**: 讓 Agent 1 能與使用者深度對話，並使用圖片輔助溝通。
-
-**Status**: ✅ 已完成核心實作 (2024-11-16)
-
-- [x] T014 [US2] [Backend] 在「客戶經理 Agent」中開發核心對話邏輯，根據報價單內容和使用者回覆進行提問。
-  - **實作**: `analysis-service/src/agents/client_manager.py`
-  - **內容**: 27個結構化問題，涵蓋完整裝修流程
-  - **特色**: 包含同理心設計、靈活追問機制、可跳過選項
-- [x] T015 [P] [US2] [Backend] 建立一個圖片生成服務，封裝對外部圖片模型 (如 Gemini Image API) 的呼叫。
-  - **狀態**: 架構已預留，待整合真實 API
-- [x] T016 [US2] [Backend] 實作 Agent 1 在對話中觸發圖片生成服務的邏輯。
-  - **實作**: 風格偏好問題會觸發 `generate_style_images` 標記
-- [x] T017 [P] [US2] [Frontend] 開發一個能同時顯示文字和圖片的聊天介面。
-  - **實作**: `web-service/src/components/InteractiveQuestionnaire.jsx`
-  - **特色**: 進度條、分類標籤、選項+文字輸入、完成動畫
-- [x] T018 [US2] [Backend] 在對話結束後，實作生成並儲存「專案簡報」的邏輯。
-  - **實作**: `compile_project_brief()` 方法
-  - **輸出**: 結構化 JSON 包含用戶資料、預算、風格、所有工程需求
-
-**新增 API 端點**:
-- `POST /api/projects/{id}/conversation/start` - 開始訪談
-- `POST /api/projects/{id}/conversation/answer` - 提交答案並獲取下一題
-- `GET /api/projects/{id}/conversation/status` - 查詢訪談狀態
-
-**新增前端組件**:
-- `InteractiveQuestionnaire.jsx` - 問答主介面
-- 重寫 `App.jsx` - 三步驟流程管理
-- 更新 `App.css` - 現代化設計系統
-
----
-
-## Phase 5: User Story 3 & 4 - 後台專家協作與交付
-
-**Goal**: Agent 2 和 3 根據簡報並行工作，產出專業成果。
-
-- [ ] T019 [US3] [Backend] 完善任務調度服務，讓 Agent 1 能將「專案簡報」ID 傳遞給 Agent 2 和 3。
-- [ ] T020 [P] [US4] [Backend] 在 `analysis-service/src/agents/` 中開發「專業統包商 Agent」，根據簡報生成詳細規格報價單。
-- [ ] T021 [P] [US4] [Backend] 在 `analysis-service/src/agents/` 中開發「設計師 Agent」，根據簡報生成最終概念渲染圖。
-- [ ] T022 [US4] [Backend] 實作將 Agent 2 和 3 的產出（報價單、渲染圖 URL）儲存回 Firestore 的邏輯。
-
----
-
-## Phase 6: User Story 5 - 成果彙報與解說
-
-**Goal**: 由 Agent 1 向使用者展示最終成果。
-
-- [ ] T023 [US5] [Backend] 實作 Agent 1 等待並獲取 Agent 2 和 3 成果的輪詢或回呼邏輯。
-- [ ] T024 [P] [US5] [Frontend] 開發一個能同時展示結構化報價單和渲染圖的最終成果頁面。
-- [ ] T025 [US5] [Backend] 開發 Agent 1 用於解說最終成果的對話腳本。
-
----
-
-## Phase 7: User Story 6 - 導流至線下服務
-
-**Goal**: 將線上使用者引導至線下預約。
-
-- [ ] T026 [P] [US6] [Frontend] 在最終成果頁面加上「預約免費丈量」的按鈕。
-- [ ] T027 [P] [US6] [Frontend] 建立一個包含姓名、聯絡方式和專案 ID 的預約表單頁面。
-- [ ] T028 [US6] [Backend] 建立一個 API 端點，用於接收預約表單的提交。
-
----
-
-## Phase 8: Polish & Cross-Cutting Concerns (優化與整合)
-
-- [ ] T029 [P] [Docs] 撰寫 `README.md`，說明如何啟動和測試服務。
-- [ ] T030 [P] [Testing] 為關鍵的 API 端點和服務撰寫單元測試。
-- [ ] T031 [Infra] 撰寫 Dockerfile，將 `analysis-service` 和 `web-service` 容器化。
-- [ ] T032 [Infra] 撰寫 `cloudbuild.yaml`，設定自動化部署至 Cloud Run 的 CI/CD 流程。
+*   **Task 08: [Frontend] 全站微互動與動效優化**
+    *   **目標**：提升網站整體的精緻感與流暢度。
+    *   **子任務**:
+        *   8.1: 為所有頁面切換加入平滑的淡入淡出效果。
+        *   8.2: 為所有可互動元件（按鈕、輸入框、連結）添加細膩的懸停 (Hover) 與焦點 (Focus) 效果。
