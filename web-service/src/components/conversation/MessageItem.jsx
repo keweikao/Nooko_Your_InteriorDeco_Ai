@@ -33,7 +33,7 @@ function MessageItem({ message, isStreaming = false }) {
     <div className={`message-item ${isAgent ? 'agent-message' : 'user-message'}`}>
       {isAgent && (
         <div className="message-avatar">
-          <div className="avatar-circle">🤖</div>
+          <img src="https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans" alt="Agent Avatar" className="avatar-circle" />
         </div>
       )}
 

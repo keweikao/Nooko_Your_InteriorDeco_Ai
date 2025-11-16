@@ -9,6 +9,86 @@ class AgentRole(str, Enum):
     DESIGNER = "設計師"
     USER = "使用者"
 
+class ConversationStage(str, Enum):
+    """Conversation progress stages"""
+    GREETING = "greeting"  # Initial greeting
+    ASSESSMENT = "assessment"  # Understanding needs
+    CLARIFICATION = "clarification"  # Asking clarifying questions
+    SUMMARY = "summary"  # Summarizing understanding
+    COMPLETE = "complete"  # Conversation complete
+
+class ConversationMessage(BaseModel):
+    """Single message in the conversation"""
+    id: str
+    sender: str  # "user" or "agent"
+    content: str
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    metadata: Optional[Dict[str, Any]] = None  # For extracted specs, progress, etc.
+
+class ExtractedSpecifications(BaseModel):
+    """Specifications extracted from conversation"""
+    # Basic Info
+    project_id: str
+
+    # Design Requirements
+    project_type: Optional[str] = None  # 全屋翻新, 局部改造
+    style_preference: Optional[str] = None  # 現代, 北歐, 日式, 古典, etc.
+
+    # Budget & Timeline
+    budget_range: Optional[str] = None  # e.g., "500,000-1,000,000"
+    timeline: Optional[str] = None  # e.g., "3 months"
+
+    # Space Info
+    total_area: Optional[float] = None  # Square meters
+    focus_areas: Optional[List[str]] = None  # 廚房, 浴室, 臥室, 客廳, etc.
+
+    # Materials & Quality
+    material_preference: Optional[str] = None
+    quality_level: Optional[str] = None  # 經濟, 標準, 高端
+
+    # Additional Requirements
+    special_requirements: Optional[List[str]] = None
+
+    # Confidence & Completeness
+    completeness_score: float = 0.0  # 0-1, how much info we have
+    confidence_scores: Dict[str, float] = Field(default_factory=dict)  # Per-field confidence
+
+    # Metadata
+    last_updated: datetime = Field(default_factory=datetime.utcnow)
+
+class ConversationState(BaseModel):
+    """Overall state of a conversation session"""
+    # Identifiers
+    conversation_id: str
+    project_id: str
+
+    # Messages
+    messages: List[ConversationMessage] = []
+
+    # Extracted Information
+    extracted_specs: Optional[ExtractedSpecifications] = None
+
+    # Progress
+    stage: ConversationStage = ConversationStage.GREETING
+    progress: int = 0  # 0-100
+
+    # Agent Info
+    agent_name: str = "Stephen"
+    agent_status: str = "idle"  # idle, typing, analyzing
+
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    # Configuration
+    max_messages: int = 100
+    model_temperature: float = 0.7
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat(),
+        }
+
 class Interaction(BaseModel):
     """Represents a single turn in the conversation."""
     agent: AgentRole

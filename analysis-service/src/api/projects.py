@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from typing import Dict, Any, List, Optional, AsyncGenerator
+from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
 from pydantic import BaseModel
 import uuid
 from datetime import datetime
@@ -15,6 +15,8 @@ from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
 from src.services.pdf_service import generate_pdf_report
 from src.services.llm_service import mock_llm_service
+from src.services.gemini_service import gemini_service
+from src.models.project import ConversationState, ConversationMessage, ExtractedSpecifications, ConversationStage
 
 router = APIRouter()
 
@@ -332,8 +334,12 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
         "stage": "greeting",
         "progress": 0,
         "created_at": datetime.utcnow().isoformat(),
-        "answers": {}
+        "answers": {},
+        "extracted_specs": {}  # Initialize extracted specifications
     }
+
+    # Also use project_id as the conversation key for easier lookup
+    conversations_db[project_id] = conversations_db[conversation_id]
 
     # Agent 信息 - Stephen (客戶經理)
     agent = {
@@ -357,41 +363,46 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
     )
 
 
-async def generate_agent_response(message: str, conversation_id: str) -> AsyncGenerator[str, None]:
-    """Generate Agent response with streaming - 生成 Agent 回應流
+async def generate_agent_response(
+    message: str,
+    conversation_id: str,
+    conversation_history: List[Dict[str, Any]] = None,
+    extracted_specs: Dict[str, Any] = None
+) -> AsyncGenerator[Tuple[str, Optional[Dict[str, Any]]], None]:
+    """Generate Agent response with streaming using Gemini LLM - 使用 Gemini 生成 Agent 回應流
 
-    Uses mock_llm_service to generate intelligent responses based on user input.
-    This can be replaced with real LLM service integration (e.g., Gemini API).
+    Integrates with Gemini API for intelligent conversations and specification extraction.
+    Yields tuples of (text_chunk, spec_updates).
     """
 
-    # Use mock LLM service to generate a contextual response - 繁体中文
-    prompt = f"""你是 Stephen，一位專業的室內設計項目經理。請以友善和專業的方式回應客戶的消息。要對話自然、和善，並提出相關的後續問題，以更好地了解他們的需求。
-
-客戶消息：{message}
-
-請自然地回應："""
+    if conversation_history is None:
+        conversation_history = []
+    if extracted_specs is None:
+        extracted_specs = {}
 
     try:
-        # Call mock LLM service to get a response
-        response = await mock_llm_service.generate_response(
-            prompt=prompt,
-            context={"conversation_id": conversation_id, "role": "stephen"}
-        )
+        # Call Gemini service to generate a response with streaming
+        context = {
+            "conversation_id": conversation_id,
+            "role": "stephen",
+            "extracted_specs": extracted_specs
+        }
 
-        # Get response text
-        if isinstance(response, dict):
-            response_text = response.get("summary", str(response))
-        else:
-            response_text = str(response)
+        # Use Gemini service streaming response
+        async for text_chunk, spec_update in gemini_service.generate_response_stream(
+            message=message,
+            conversation_history=conversation_history,
+            context=context
+        ):
+            yield (text_chunk, spec_update)
 
     except Exception as e:
-        logger.error(f"Error generating response: {e}")
-        response_text = "I appreciate you sharing that information. Could you tell me more about your renovation goals and preferences?"
-
-    # Stream response character by character
-    for char in response_text:
-        yield char
-        await asyncio.sleep(0.01)  # Adjust streaming speed
+        logger.error(f"Error generating response with Gemini: {e}")
+        # Fallback to mock response if Gemini fails
+        fallback_msg = "抱歉，暫時無法連接到 AI 服務。請稍後再試。"
+        for char in fallback_msg:
+            yield (char, None)
+            await asyncio.sleep(0.01)
 
 
 @router.get("/projects/{project_id}/conversation/message-stream")
@@ -406,38 +417,52 @@ async def send_message_stream(
 
     async def event_generator():
         try:
-            # 生成 Agent 回應
-            response_text = ""
-            async for char in generate_agent_response(message, project_id):
-                response_text += char
+            # Get conversation history and extracted specs from storage
+            conversation_history = conversations_db.get(project_id, {}).get("messages", [])
+            extracted_specs = conversations_db.get(project_id, {}).get("extracted_specs", {})
 
-                # 每 3 個字符發送一次事件
-                if len(response_text) % 3 == 0:
+            # 生成 Agent 回應 with Gemini integration
+            response_text = ""
+            async for text_chunk, spec_update in generate_agent_response(
+                message=message,
+                conversation_id=project_id,
+                conversation_history=conversation_history,
+                extracted_specs=extracted_specs
+            ):
+                if text_chunk:
+                    response_text += text_chunk
+
+                    # 每個字符發送一次事件（real-time streaming）
                     event_data = {
-                        "chunk": response_text[-3:] if len(response_text) >= 3 else response_text,
+                        "chunk": text_chunk,
                         "isComplete": False,
                         "metadata": {
                             "stage": "assessment",
-                            "progress": 25
+                            "progress": 50
                         }
                     }
                     yield f"event: message_chunk\n"
                     yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0)
 
-            # 發送最後的部分
-            remaining = response_text[-(len(response_text) % 3):] if len(response_text) % 3 != 0 else ""
-            if remaining:
-                event_data = {
-                    "chunk": remaining,
-                    "isComplete": False,
-                    "metadata": {
-                        "stage": "assessment",
-                        "progress": 25
-                    }
-                }
-                yield f"event: message_chunk\n"
-                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                # Handle spec updates
+                if spec_update:
+                    # Merge updated specs with existing ones
+                    if project_id in conversations_db:
+                        conversations_db[project_id]["extracted_specs"] = spec_update
+                    logger.info(f"Specs updated: {spec_update}")
+
+            # Save the full response message to history
+            if project_id in conversations_db:
+                conversations_db[project_id]["messages"].append({
+                    "sender": "user",
+                    "content": message,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                conversations_db[project_id]["messages"].append({
+                    "sender": "agent",
+                    "content": response_text,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
 
             # 發送完成事件
             complete_event = {
@@ -445,14 +470,15 @@ async def send_message_stream(
                 "isComplete": True,
                 "metadata": {
                     "stage": "assessment",
-                    "progress": 25
+                    "progress": 50,
+                    "extracted_specs": conversations_db.get(project_id, {}).get("extracted_specs", {})
                 }
             }
             yield f"event: message_chunk\n"
             yield f"data: {json.dumps(complete_event, ensure_ascii=False)}\n\n"
 
         except Exception as e:
-            print(f"Error in stream: {e}")
+            logger.error(f"Error in stream: {e}")
             error_event = {
                 "error": str(e),
                 "isComplete": True
