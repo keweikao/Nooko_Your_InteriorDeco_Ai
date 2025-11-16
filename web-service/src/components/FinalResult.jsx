@@ -1,100 +1,160 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import './FinalResult.css';
 
-const FinalResult = ({ quote, renderingUrl }) => {
+const FinalResult = ({ projectId, apiBaseUrl, projectBrief, onBookingRequest }) => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
 
-  const tableHeaderStyle = {
-    backgroundColor: '#f2f2f2',
-    padding: '12px',
-    textAlign: 'left',
-    borderBottom: '2px solid #ddd',
-  };
+  useEffect(() => {
+    if (projectId && apiBaseUrl) {
+      fetchAnalysisResult();
+    }
+  }, [projectId, apiBaseUrl]);
 
-  const tableCellStyle = {
-    padding: '12px',
-    borderBottom: '1px solid #ddd',
-  };
+  const fetchAnalysisResult = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/analysis-result`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-  const suggestionRowStyle = {
-    backgroundColor: '#fffbe6', // Light yellow for suggested items
-  };
-
-  const ctaButtonStyle = {
-    display: 'block',
-    width: '100%',
-    padding: '15px',
-    marginTop: '40px',
-    fontSize: '1.2em',
-    fontWeight: 'bold',
-    color: 'white',
-    backgroundColor: '#007bff',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    textAlign: 'center',
+      if (response.ok) {
+        const data = await response.json();
+        setAnalysisResult(data);
+        setError(null);
+      } else {
+        setError('無法載入分析結果');
+      }
+    } catch (err) {
+      console.error('Error fetching analysis result:', err);
+      setError('載入分析結果時發生錯誤');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount);
+    return new Intl.NumberFormat('zh-TW', {
+      style: 'currency',
+      currency: 'TWD',
+      minimumFractionDigits: 0
+    }).format(amount);
   };
 
-  const handleBooking = () => {
-    // This will be implemented in a later task
-    alert('「預約免費丈量」功能將在後續實現！');
-  };
+  if (loading) {
+    return (
+      <div className="final-result-container loading">
+        <div className="loading-spinner"></div>
+        <p>正在生成您的專屬分析結果...</p>
+      </div>
+    );
+  }
+
+  if (error || !analysisResult) {
+    return (
+      <div className="final-result-container error">
+        <div className="error-message">
+          <p>⚠️ {error || '無法載入分析結果'}</p>
+          <button onClick={fetchAnalysisResult} className="retry-button">重新試試</button>
+        </div>
+      </div>
+    );
+  }
+
+  const { rendering_url, quote, summary } = analysisResult;
 
   return (
-    <div style={{ fontFamily: 'sans-serif', padding: '20px' }}>
-      <h2>您的專屬設計方案</h2>
-      
-      <div style={{ marginBottom: '30px' }}>
-        <h3>概念渲染圖</h3>
-        <p>這是我們根據您的需求，為您量身打造的風格概念圖：</p>
-        <img 
-          src={renderingUrl} 
-          alt="Final Concept Rendering" 
-          style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px', boxShadow: '0 4px 8px rgba(0,0,0,0.1)' }} 
-        />
+    <div className="final-result-container">
+      {/* 概念渲染圖區塊 */}
+      <div className="result-section rendering-section">
+        <h3 className="section-title">
+          <span className="section-icon">🎨</span>
+          您的專屬設計概念
+        </h3>
+        {rendering_url && (
+          <div className="rendering-container">
+            <img
+              src={rendering_url}
+              alt="Final Concept Rendering"
+              className="rendering-image"
+            />
+          </div>
+        )}
+        {summary && (
+          <div className="summary-box">
+            <p className="summary-text">{summary}</p>
+          </div>
+        )}
       </div>
 
-      <div>
-        <h3>詳細規格報價單</h3>
-        <p>以下是根據您的需求和我們的專業建議，為您整理的詳細報價：</p>
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
-          <thead>
-            <tr>
-              <th style={tableHeaderStyle}>項目</th>
-              <th style={tableHeaderStyle}>規格</th>
-              <th style={tableHeaderStyle}>數量</th>
-              <th style={tableHeaderStyle}>單價</th>
-              <th style={tableHeaderStyle}>總價</th>
-            </tr>
-          </thead>
-          <tbody>
-            {quote.line_items.map((item, index) => (
-              <tr key={index} style={item.is_suggestion ? suggestionRowStyle : {}}>
-                <td style={tableCellStyle}>
-                  {item.item_name}
-                  {item.is_suggestion && <span style={{ color: '#d97706', marginLeft: '8px', fontSize: '0.8em' }}>[建議項目]</span>}
-                </td>
-                <td style={tableCellStyle}>{item.spec}</td>
-                <td style={tableCellStyle}>{`${item.quantity} ${item.unit}`}</td>
-                <td style={tableCellStyle}>{formatCurrency(item.unit_price)}</td>
-                <td style={tableCellStyle}>{formatCurrency(item.total_price)}</td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan="4" style={{ ...tableCellStyle, textAlign: 'right', fontWeight: 'bold', fontSize: '1.2em' }}>總計：</td>
-              <td style={{ ...tableCellStyle, fontWeight: 'bold', fontSize: '1.2em' }}>{formatCurrency(quote.total_price)}</td>
-            </tr>
-          </tfoot>
-        </table>
+      {/* 報價單區塊 */}
+      <div className="result-section quote-section">
+        <h3 className="section-title">
+          <span className="section-icon">📋</span>
+          詳細規格報價單
+        </h3>
+        <p className="section-description">
+          根據您的需求和我們的專業分析，為您整理的詳細報價
+        </p>
+
+        {quote && quote.line_items && (
+          <div className="quote-table-wrapper">
+            <table className="quote-table">
+              <thead>
+                <tr>
+                  <th>項目</th>
+                  <th>規格</th>
+                  <th>數量</th>
+                  <th>單價</th>
+                  <th>總價</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quote.line_items.map((item, index) => (
+                  <tr key={index} className={item.is_suggestion ? 'suggestion-row' : ''}>
+                    <td className="item-name">
+                      {item.item_name}
+                      {item.is_suggestion && <span className="suggestion-badge">AI 建議</span>}
+                    </td>
+                    <td className="item-spec">{item.spec}</td>
+                    <td className="item-quantity">{item.quantity} {item.unit}</td>
+                    <td className="item-unit-price">{formatCurrency(item.unit_price)}</td>
+                    <td className="item-total-price">{formatCurrency(item.total_price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="total-row">
+                  <td colSpan="4">報價總計</td>
+                  <td className="total-amount">{formatCurrency(quote.total_price)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
       </div>
 
-      <button style={ctaButtonStyle} onClick={handleBooking}>
-        預約免費丈量
-      </button>
+      {/* CTA 按鈕 */}
+      <div className="result-actions">
+        <button
+          className="booking-button"
+          onClick={onBookingRequest}
+        >
+          <span className="button-icon">📞</span>
+          預約免費丈量
+        </button>
+        <button
+          className="download-button"
+          onClick={() => window.print()}
+        >
+          <span className="button-icon">📥</span>
+          下載報告
+        </button>
+      </div>
     </div>
   );
 };

@@ -48,11 +48,35 @@ function App() {
 
   const handleQuestionnaireComplete = (brief) => {
     setProjectBrief(brief);
-    // In a real implementation, this would trigger the contractor and designer agents
-    // For now, we'll simulate a delay and move to results
+    // Trigger Agent1 (Contractor Agent) to start processing
+    triggerAgent1(brief);
+
+    // Move to results after Agent1 completes
     setTimeout(() => {
       setCurrentStep('results');
     }, 2000);
+  };
+
+  const triggerAgent1 = async (brief) => {
+    try {
+      // Trigger the contractor agent (Agent1) to analyze the project brief
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/trigger-agent-1`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          project_brief: brief,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to trigger Agent1:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error triggering Agent1:', error);
+    }
   };
 
   const handleBookingRequest = () => {
@@ -189,16 +213,13 @@ function App() {
         <div className="header-content">
           <h1>🏠 Nooko 裝潢 AI 夥伴</h1>
           <p>透明報價 • 專業建議 • 讓裝潢不再是資訊不對稱的遊戲</p>
-          <div className="header-actions">
-            <UiButton variant="secondary" onClick={() => setCurrentStep('upload')} disabled={!projectId}>
-              立即開始
-            </UiButton>
-            {isShowcaseEnabled && (
+          {isShowcaseEnabled && (
+            <div className="header-actions">
               <UiButton variant="ghost" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
                 查看 UI Showcase
               </UiButton>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </header>
 
