@@ -394,3 +394,66 @@ Commit: `a950d90` - 修復生產環境 API 連接問題和 UI Showcase 配置
 ### Next Session Preparation
 - [ ] 將 `project_search` server 註冊進 `~/.claude/mcp_config.json`（若尚未完成）。
 - [ ] 視需要擴充工具（例如加入目錄白名單或檔案類型權重），讓索引更精準。
+
+---
+
+## 2025年11月16日 - Phase 1 & 2 UI/UX Implementation & Process Optimization
+
+### 總結
+完成了 Phase 1 和 Phase 2 的 UI/UX 優化任務，包括導入新的品牌視覺識別、重構核心 UI 元件以使用新的設計系統，並開發了進度儀表板、動態分析訊息和後端 PDF 報告生成功能。在過程中，識別並解決了因工具使用策略不當而導致的開發循環問題。
+
+### 已完成任務詳情
+
+#### Phase 1: 核心體驗與品牌識別
+- **Task 01: 建立核心視覺與品牌識別**
+  - 在 `tailwind.config.js` 和 `index.css` 中配置了新的品牌色票 (Nooko White, Charcoal, Terracotta) 和字體 (Playfair Display, Inter)。
+  - 建立了 `StyleGuide.jsx` 元件以展示新的視覺風格和基本元件。
+- **Task 02: 建構主要頁面與核心元件**
+  - 重構了 `App.css`、`FileUpload.jsx` 和 `InteractiveQuestionnaire.jsx`，使其完全採用 Tailwind CSS 和新的設計系統。
+  - 刪除了不再需要的 `FileUpload.css` 和 `InteractiveQuestionnaire.css`。
+- **Task 03: 開發「進度儀表板」元件**
+  - 建立了 `ProgressDashboard.jsx` 元件，用於在使用者流程中顯示進度。
+  - 將其整合到 `App.jsx` 中，並調整了應用程式的狀態以匹配儀表板的步驟。
+
+#### Phase 2: 專業形象與信任感強化
+- **Task 04: 實作 AI 思考過程的具象化**
+  - 在後端 `analysis-service/src/api/projects.py` 中新增了 `/analysis-messages` 端點，用於提供分析過程中的提示訊息。
+  - 建立了 `AnalysisSection.jsx` 元件，在前端實現了從後端獲取並輪播顯示這些動態訊息的功能。
+- **Task 05: 導入 Agent 人格化形象**
+  - 修改了後端 API (`projects.py`)，使其在回應中包含 `agent_name`。
+  - 更新了前端 `InteractiveQuestionnaire.jsx`，使其能夠動態顯示 Agent 的名稱和頭像首字母。
+- **Task 06: 開發「精美藍圖報告」PDF 生成功能**
+  - 在 `analysis-service/requirements.txt` 中添加了 `reportlab` 依賴。
+  - 建立了 `analysis-service/src/services/pdf_service.py`，封裝了 PDF 生成邏輯。
+  - 在 `analysis-service/src/api/projects.py` 中新增了 `/generate-pdf-report` 端點，用於生成並以串流方式返回 PDF 報告。
+
+### 關鍵決策與學習
+
+- **主題**: `replace` 工具的使用策略優化
+- **問題**: 在對單一檔案進行多次連續的 `replace` 操作時，遇到了持續的失敗循環。原因是第一次修改成功後，檔案內容發生變化，導致後續操作的 `old_string` (比對基準) 失效，從而操作失敗。
+- **解決方案**: 採用了**「讀取-修改-確認」(Read-Modify-Confirm)** 的迭代策略。該策略的核心是：每次只對檔案進行一次最小化的原子修改，然後立即重新讀取檔案以獲取最新狀態，再基於最新狀態進行下一步修改。這個方法雖然步驟更繁瑣，但極大地提高了修改的穩定性和成功率，有效避免了無效循環。
+
+### 變更檔案
+- **Created**:
+  - `specs/002-interior-deco-ai/tasks.md`
+  - `web-service/src/components/StyleGuide.jsx`
+  - `web-service/src/components/ProgressDashboard.jsx`
+  - `web-service/src/components/AnalysisSection.jsx`
+  - `analysis-service/src/services/pdf_service.py`
+- **Modified**:
+  - `web-service/tailwind.config.js`
+  - `web-service/src/index.css`
+  - `web-service/src/App.css`
+  - `web-service/src/App.jsx`
+  - `web-service/src/components/FileUpload.jsx`
+  - `web-service/src/components/InteractiveQuestionnaire.jsx`
+  - `analysis-service/requirements.txt`
+  - `analysis-service/src/api/projects.py`
+- **Deleted**:
+  - `web-service/src/components/FileUpload.css`
+  - `web-service/src/components/InteractiveQuestionnaire.css`
+
+### Next Session Preparation
+- [ ] 啟動 `web-service` 開發伺服器，以預覽和驗證所有已實施的 UI/UX 變更。
+- [ ] 根據預覽結果，進行必要的微調。
+- [ ] 繼續執行 Phase 3 的任務。
