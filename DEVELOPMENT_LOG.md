@@ -457,3 +457,160 @@ Commit: `a950d90` - 修復生產環境 API 連接問題和 UI Showcase 配置
 - [ ] 啟動 `web-service` 開發伺服器，以預覽和驗證所有已實施的 UI/UX 變更。
 - [ ] 根據預覽結果，進行必要的微調。
 - [ ] 繼續執行 Phase 3 的任務。
+
+---
+
+## 2025年11月17日 - Gemini LLM Integration for Agent1
+
+### 總結
+完成了 Phase 1 的 Gemini LLM 整合，實現 Stephen（客戶經理）與用戶的真實智能對話。使用 Google Gemini 2.0 Flash API 進行動態規格提取，使系統能自然流暢地從對話中逐步收集室內設計相關信息。
+
+### 已完成任務詳情
+
+#### 1. 數據模型設計 (analysis-service/src/models/project.py:12-90)
+- **ConversationStage**: 對話進度 Enum (greeting → assessment → clarification → summary → complete)
+- **ConversationMessage**: 單一消息結構 (id, sender, content, timestamp, metadata)
+- **ExtractedSpecifications**: 從對話中提取的結構化設計規格
+  - 基礎信息: 項目類型 (全屋翻新/局部改造)、風格偏好 (現代/北歐/日式/古典)
+  - 預算與時程: budget_range、timeline
+  - 空間信息: total_area、focus_areas (廚房/浴室/臥室等)
+  - 材料與品質: material_preference、quality_level (經濟/標準/高端)
+  - 特殊需求: special_requirements
+  - 信心分數: completeness_score (0-1)、per-field confidence_scores
+- **ConversationState**: 對話會話總體狀態管理 (messages、extracted_specs、stage、progress)
+
+#### 2. Gemini 服務強化 (analysis-service/src/services/gemini_service.py:1-317)
+
+**核心方法設計:**
+
+1. **`_build_dynamic_system_prompt()`** (lines 28-95)
+   - 根據已蒐集的規格動態生成 Stephen 的系統提示
+   - 顯示已收集信息，避免重複提問
+   - 突出待蒐集信息，引導自然對話
+   - 確保不用清單風格強行逐一詢問
+
+2. **`_extract_specifications()`** (lines 97-171)
+   - 使用 Gemini JSON 模式進行結構化提取
+   - 解析對話歷史識別設計規格
+   - 返回清潔的 JSON 格式
+   - 生成每個字段的信心分數 (0-1)
+
+3. **`generate_response_stream()`** (lines 173-255)
+   - 真實時間流式回應 (character-by-character streaming)
+   - 產生 (text_chunk, spec_update) 的元組
+   - 回應完成後提取規格
+   - GEMINI_API_KEY 未設置時的優雅降級
+
+4. **`generate_response()`** (lines 257-313)
+   - 非串流版本，用於批量處理或同步場景
+
+#### 3. API 端點整合 (analysis-service/src/api/projects.py:1-493)
+
+**修改的導入和類型:**
+- 添加 `Tuple` 類型提示 (line 3)
+- 整合 `gemini_service` 和對話模型 (lines 18-19)
+
+**`generate_agent_response()` 函數** (lines 362-401)
+- 替換模擬服務，使用真實 Gemini 整合
+- 接受對話歷史和已提取規格作為上下文
+- 返回非同步生成器，產生 (text, spec_updates) 元組
+- 包含完整的錯誤處理和降級
+
+**`send_message_stream()` 端點** (lines 404-493)
+- 從存儲中取得對話歷史
+- 逐字符流式化回應以實現實時 UX
+- 在串流期間處理規格更新
+- 保存完整消息歷史用於上下文傳遞
+- 在完成事件中返回已提取的規格
+
+**`init_conversation()` 端點** (lines 321-342)
+- 初始化 extracted_specs 儲存
+- 使用雙鑰查詢 (conversation_id 和 project_id)
+
+#### 4. 配置與依賴
+- `analysis-service/requirements.txt`: 已包含 `google-generativeai>=0.3.0`
+- Cloud Run 環境變量: `GEMINI_API_KEY` 已在 Secret Manager 中配置
+
+### 技術亮點
+
+★ Insight ─────────────────────────────────────
+Gemini 整合採用**分階段提取模式**：
+1. 立即流式傳輸文本回應，確保用戶感受到實時性
+2. 回應完成後非同步提取結構化規格
+
+這個設計在保證 UX 響應性的同時，在後台靜默收集結構化信息。動態系統提示充當了「上下文感知的面試官」，自然地引導對話朝向缺失信息，而不是強制性的。
+─────────────────────────────────────────────────
+
+### 架構流程
+
+```
+用戶消息 → /conversation/message-stream 端點
+         ↓
+    generate_agent_response()
+         ↓
+    Gemini 服務 (動態系統提示 + 對話歷史)
+         ↓
+    實時流式回應 (character-by-character)
+    + 規格提取 (JSON 模式)
+         ↓
+    (text_chunk, spec_updates) 元組 → SSE 流到前端
+         ↓
+    儲存在 conversations_db → 下一輪作為上下文使用
+```
+
+### 已完成的功能清單
+
+✅ **Gemini 整合完全實施** - 設置 GEMINI_API_KEY 時使用真實 LLM
+✅ **結構化規格提取** - JSON 模式解析設計需求
+✅ **動態對話提示** - 系統提示根據已蒐集信息適應
+✅ **流式支持** - 逐字符實時回應
+✅ **優雅降級** - API 不可用時有降級支持
+✅ **所有代碼已提交** - 推送到 master 分支 (commit 8286836)
+✅ **Cloud Build 提交** - Build 5e355b 正在部署到 Cloud Run
+
+### 已提交的變更
+
+**Commit**: `8286836` - Implement Gemini LLM Integration for Agent1 Real Conversation System
+
+**修改的檔案**:
+1. `analysis-service/src/models/project.py` (81 行新增)
+   - 新增: ConversationStage, ConversationMessage, ExtractedSpecifications, ConversationState 模型
+
+2. `analysis-service/src/services/gemini_service.py` (317 行完整實施)
+   - 新增文件：完整的 Gemini 服務實施
+   - 包含動態提示、規格提取、流式回應
+
+3. `analysis-service/src/api/projects.py` (修改 5 個關鍵部分)
+   - 添加 Tuple 導入
+   - 添加 Gemini 服務導入
+   - 重寫 generate_agent_response() 使用 Gemini
+   - 增強 send_message_stream() 端點
+   - 更新 init_conversation() 初始化規格儲存
+
+### 後續建議 (Phase 2-5)
+
+- **Phase 2**: 低信心分數的自動追問驗證
+- **Phase 3**: Firestore 持久化對話和規格
+- **Phase 4**: 前端實時顯示規格提取進度
+- **Phase 5**: 完整測試、優化和生產強化
+
+### 部署狀態
+
+- ✅ 代碼已提交至 master (commit 8286836)
+- ✅ Cloud Build 已提交 (Build ID: 5e355b)
+- ⏳ 部署進行中（預計 10-15 分鐘）
+- ⚙️ 需要在 Cloud Run 環境中設置 `GEMINI_API_KEY` Secret
+
+### 測試清單（部署完成後）
+
+- [ ] 驗證 GEMINI_API_KEY 已正確設置在 Cloud Run 環境
+- [ ] 訪問前端應用程式並進入對話
+- [ ] 檢查 Stephen 的回應是否使用真實 Gemini（而非降級回應）
+- [ ] 驗證多輪對話中規格逐步提取（通過後端日誌）
+- [ ] 確認對話完成後能生成完整的提案和報價
+
+### Next Session Preparation
+- [ ] 驗證 Build 5e355b 部署成功
+- [ ] 在生產環境測試 Gemini 整合功能
+- [ ] 根據需要調整動態系統提示或規格提取邏輯
+- [ ] 規劃 Phase 2-5 的實施時程
