@@ -342,12 +342,12 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
         "status": "idle"
     }
 
-    # 初始問候消息
-    initial_message = """Hi! I'm Stephen, your dedicated project manager.
+    # 初始問候消息 - 繁體中文
+    initial_message = """您好！我是 Stephen，您的專業項目經理。
 
-I'm here to understand your interior design vision and ensure we create a space that's perfect for you.
+我在這裡是為了深入了解您的室內設計願景，確保我們為您打造一個完美的空間。
 
-What are the main areas you'd like to renovate? Kitchen, bathroom, bedroom, or the entire space?"""
+請問您主要想要裝修哪些區域呢？廚房、浴室、臥室，還是整個空間？"""
 
     return InitConversationResponse(
         conversationId=conversation_id,
@@ -364,8 +364,12 @@ async def generate_agent_response(message: str, conversation_id: str) -> AsyncGe
     This can be replaced with real LLM service integration (e.g., Gemini API).
     """
 
-    # Use mock LLM service to generate a contextual response
-    prompt = f"As Stephen, a professional interior design project manager, respond to the client's message in a friendly and professional way. Be conversational and ask relevant follow-up questions to understand their needs better.\n\nClient message: {message}\n\nRespond naturally:"
+    # Use mock LLM service to generate a contextual response - 繁体中文
+    prompt = f"""你是 Stephen，一位專業的室內設計項目經理。請以友善和專業的方式回應客戶的消息。要對話自然、和善，並提出相關的後續問題，以更好地了解他們的需求。
+
+客戶消息：{message}
+
+請自然地回應："""
 
     try:
         # Call mock LLM service to get a response
@@ -390,7 +394,7 @@ async def generate_agent_response(message: str, conversation_id: str) -> AsyncGe
         await asyncio.sleep(0.01)  # Adjust streaming speed
 
 
-@router.post("/projects/{project_id}/conversation/message-stream")
+@router.get("/projects/{project_id}/conversation/message-stream")
 async def send_message_stream(
     project_id: str,
     message: str = Query(...),

@@ -26,7 +26,7 @@ function useConversation(projectId, apiBaseUrl) {
       setError(null);
 
       const response = await fetch(
-        `${apiBaseUrl}/projects/${projectId}/conversation/init`,
+        `${apiBaseUrl}/api/projects/${projectId}/conversation/init`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -102,9 +102,9 @@ function useConversation(projectId, apiBaseUrl) {
         // 設置 Agent 為輸入狀態
         setAgent((prev) => ({ ...prev, status: 'typing' }));
 
-        // 建立 SSE 連接
+        // 建立 SSE 連接 - 添加 /api 前缀以匹配后端路由
         const eventSource = new EventSource(
-          `${apiBaseUrl}/projects/${projectId}/conversation/message-stream?message=${encodeURIComponent(content)}`
+          `${apiBaseUrl}/api/projects/${projectId}/conversation/message-stream?message=${encodeURIComponent(content)}`
         );
 
         let agentResponseId = `msg-${Date.now()}-agent`;
