@@ -193,9 +193,11 @@ function App() {
             <UiButton variant="secondary" onClick={() => setCurrentStep('upload')} disabled={!projectId}>
               立即開始
             </UiButton>
-            <UiButton variant="ghost" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
-              查看 UI Showcase
-            </UiButton>
+            {isShowcaseEnabled && (
+              <UiButton variant="ghost" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
+                查看 UI Showcase
+              </UiButton>
+            )}
           </div>
         </div>
       </header>
