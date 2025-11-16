@@ -392,4 +392,5 @@ Commit: `a950d90` - 修復生產環境 API 連接問題和 UI Showcase 配置
 - 工具依賴 `rg`，若於全新環境啟用需先安裝 ripgrep。
 
 ### Next Session Preparation
-- [ ] 將 `project_search` server 註冊進 `~/.claude/mcp_config.json`（�
+- [ ] 將 `project_search` server 註冊進 `~/.claude/mcp_config.json`（若尚未完成）。
+- [ ] 視需要擴充工具（例如加入目錄白名單或檔案類型權重），讓索引更精準。

@@ -1,14 +1,17 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, AsyncGenerator
 from pydantic import BaseModel
 import uuid
 from datetime import datetime
 import io
+import asyncio
+import json
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
 from src.services.pdf_service import generate_pdf_report
+from src.services.llm_service import call_llm_streaming
 
 router = APIRouter()
 
@@ -44,8 +47,26 @@ class TranslateNeedRequest(BaseModel):
     consumer_need: str
     context: Optional[Dict[str, Any]] = None
 
+# 新增模型定義
+class InitConversationResponse(BaseModel):
+    conversationId: str
+    agent: Dict[str, Any]
+    initialMessage: str
+    timestamp: int
+
+class MessageChunkEvent(BaseModel):
+    chunk: str
+    isComplete: bool
+    metadata: Optional[Dict[str, Any]] = None
+
+class CompleteConversationResponse(BaseModel):
+    summary: str
+    briefing: Dict[str, Any]
+    analysis: Dict[str, Any]
+
 # In-memory storage (will be replaced with Firestore)
 projects_db: Dict[str, Dict[str, Any]] = {}
+conversations_db: Dict[str, Dict[str, Any]] = {}
 
 @router.post("/projects", response_model=CreateProjectResponse)
 async def create_project() -> CreateProjectResponse:
@@ -284,5 +305,222 @@ async def generate_pdf_report_endpoint(project_id: str, request: ReportRequest):
         raise HTTPException(status_code=404, detail="Project not found")
 
     pdf_bytes = generate_pdf_report(request.analysis_data)
-    
+
     return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf")
+
+
+# ============================================================================
+# Plan B: Real Conversation System - SSE Endpoints
+# ============================================================================
+
+@router.post("/projects/{project_id}/conversation/init", response_model=InitConversationResponse)
+async def init_conversation(project_id: str) -> InitConversationResponse:
+    """初始化真實對話 - Initialize real conversation with Agent1"""
+    if project_id not in projects_db:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 創建新的對話會話
+    conversation_id = f"conv-{uuid.uuid4()}"
+
+    conversations_db[conversation_id] = {
+        "id": conversation_id,
+        "project_id": project_id,
+        "messages": [],
+        "stage": "greeting",
+        "progress": 0,
+        "created_at": datetime.utcnow().isoformat(),
+        "answers": {}
+    }
+
+    # Agent 信息
+    agent = {
+        "name": "施工主任",
+        "avatar": "🤖",
+        "status": "idle"
+    }
+
+    # 初始問候消息
+    initial_message = """歡迎！我是您的專業施工主任。我已經了解到您正在進行一個裝修項目。
+
+讓我們通過對話深入了解您的需求。我會根據您的預算、空間和風格偏好，為您提供最專業的建議。
+
+請告訴我，您的裝修項目主要涉及哪些區域？比如廚房、浴室、卧室或整體空間？"""
+
+    return InitConversationResponse(
+        conversationId=conversation_id,
+        agent=agent,
+        initialMessage=initial_message,
+        timestamp=int(datetime.utcnow().timestamp() * 1000)
+    )
+
+
+async def generate_agent_response(message: str, conversation_id: str) -> AsyncGenerator[str, None]:
+    """Generate Agent response with streaming - 生成 Agent 回應流"""
+
+    # 模擬 Agent 回應，實際應使用 LLM 服務
+    # 在實際環境中，這應該調用 call_llm_streaming()
+
+    responses = {
+        "預算": "感謝您告訴我預算範圍。這對我估算項目規模很有幫助。一般來說，預算將直接影響材料選擇和施工方案。\n\n根據您的預算，我會推薦合理的材料搭配，確保性價比最優。您還有其他特別關注的區域嗎？",
+        "廚房": "廚房裝修需要特別注意工序和材料。關鍵項目包括：\n\n1. 防水處理\n2. 電氣安全布線\n3. 通風系統\n4. 櫃體和台面\n\n這些都是不能省略的。您現在的廚房有特別的問題嗎？",
+        "浴室": "浴室是家中最容易出現濕氣問題的地方。我會確保：\n\n1. 完整的防水層\n2. 充分的通風\n3. 防滑安全措施\n4. 適當的排水設計\n\n這些是浴室裝修的基礎。您對現有浴室還滿意嗎？",
+        "風格": "好的，風格選擇確實能影響整體的視覺效果和施工成本。\n\n常見的風格包括：\n- 現代簡約\n- 北歐風格\n- 中式古典\n- 工業風格\n\n您傾向於哪種風格呢？",
+        "default": "感謝您的信息。根據您的回答，我有更清楚的了解了。\n\n為了給您最好的建議，我還需要了解：\n1. 您的時間安排\n2. 特殊需求或限制\n3. 對材料的偏好\n\n請分享您認為最重要的一點。"
+    }
+
+    # 選擇對應的回應
+    response_text = responses.get("default")
+    for key in responses.keys():
+        if key.lower() in message.lower() and key != "default":
+            response_text = responses[key]
+            break
+
+    # 逐字流式發送回應
+    for char in response_text:
+        yield char
+        await asyncio.sleep(0.02)  # 模擬流式延遲
+
+
+@router.post("/projects/{project_id}/conversation/message-stream")
+async def send_message_stream(
+    project_id: str,
+    message: str = Query(...),
+) -> StreamingResponse:
+    """發送消息並通過 SSE 流式接收 Agent 回應 - Send message and receive streaming response"""
+
+    if project_id not in projects_db:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    async def event_generator():
+        try:
+            # 生成 Agent 回應
+            response_text = ""
+            async for char in generate_agent_response(message, project_id):
+                response_text += char
+
+                # 每 3 個字符發送一次事件
+                if len(response_text) % 3 == 0:
+                    event_data = {
+                        "chunk": response_text[-3:] if len(response_text) >= 3 else response_text,
+                        "isComplete": False,
+                        "metadata": {
+                            "stage": "assessment",
+                            "progress": 25
+                        }
+                    }
+                    yield f"event: message_chunk\n"
+                    yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0)
+
+            # 發送最後的部分
+            remaining = response_text[-(len(response_text) % 3):] if len(response_text) % 3 != 0 else ""
+            if remaining:
+                event_data = {
+                    "chunk": remaining,
+                    "isComplete": False,
+                    "metadata": {
+                        "stage": "assessment",
+                        "progress": 25
+                    }
+                }
+                yield f"event: message_chunk\n"
+                yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+
+            # 發送完成事件
+            complete_event = {
+                "chunk": "",
+                "isComplete": True,
+                "metadata": {
+                    "stage": "assessment",
+                    "progress": 25
+                }
+            }
+            yield f"event: message_chunk\n"
+            yield f"data: {json.dumps(complete_event, ensure_ascii=False)}\n\n"
+
+        except Exception as e:
+            print(f"Error in stream: {e}")
+            error_event = {
+                "error": str(e),
+                "isComplete": True
+            }
+            yield f"event: error\n"
+            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive"
+        }
+    )
+
+
+@router.post("/projects/{project_id}/conversation/complete", response_model=CompleteConversationResponse)
+async def complete_conversation(project_id: str) -> CompleteConversationResponse:
+    """完成對話並返回總結 - Complete conversation and return summary"""
+
+    if project_id not in projects_db:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # 獲取或創建 Manager
+    project = projects_db[project_id]
+    manager = project["questionnaire_state"].get("manager")
+    if not manager:
+        manager = ClientManagerAgentV2()
+
+    # 生成總結
+    summary = """基於我們的對話，我已經了解了您的需求。以下是我的專業建議：
+
+1. **空間規劃**：根據您提到的區域，我建議優先處理濕區防水。
+2. **材料選擇**：在您的預算範圍內，我推薦性價比最高的材料組合。
+3. **施工順序**：建議先完成隱蔽工程，再進行裝飾工程。
+4. **時間安排**：預計整個項目需要 3-4 週完成。
+
+接下來，我會為您生成詳細的設計方案和規格書。"""
+
+    # 創建簡報數據
+    briefing = {
+        "project_id": project_id,
+        "user_profile": {
+            "communication_style": "professional",
+            "budget_conscious": True,
+            "timeline_important": True
+        },
+        "style_preferences": ["modern", "practical"],
+        "key_requirements": [
+            "防水處理",
+            "安全電氣",
+            "通風系統",
+            "材料質量"
+        ],
+        "completed_at": datetime.utcnow().isoformat()
+    }
+
+    # 分析結果
+    analysis = {
+        "summary": summary,
+        "key_insights": [
+            "用戶對質量有高要求",
+            "預算有限制，需要合理分配",
+            "多個區域需要關注防水"
+        ],
+        "recommendations": [
+            "優先安排隱蔽工程檢查",
+            "選擇高品質防水材料",
+            "建議分階段施工以控制成本"
+        ],
+        "next_steps": [
+            "生成詳細設計圖",
+            "準備完整規格書",
+            "安排現場丈量"
+        ]
+    }
+
+    return CompleteConversationResponse(
+        summary=summary,
+        briefing=briefing,
+        analysis=analysis
+    )
