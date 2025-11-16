@@ -1,0 +1,65 @@
+# Git files
+.git
+.gitignore
+
+# Node modules
+node_modules/
+web-service/node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Environment
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+.specify/mcp-server/servers/logs/
+
+# Documentation (not needed in deployment)
+*.md
+!README.md
+docs/
+specs/
+
+# Test files
+tests/
+test_*.py
+*_test.py
+
+# Temporary files
+*.tmp
+.DS_Store
+.cache/
+
+# Web service (deploy separately)
+web-service/
+
+# Development files
+DEVELOPMENT_LOG.md
+QUICK_START.sh
+LOCAL_TESTING_GUIDE.md
+START_TESTING.md
+UPDATES_SUMMARY.md
+FIXED_START_GUIDE.md
+CONSTRUCTION_TRANSLATOR_GUIDE.md

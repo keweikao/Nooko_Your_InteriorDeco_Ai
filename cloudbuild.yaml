@@ -1,0 +1,77 @@
+steps:
+  # Build and push analysis-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+      - './analysis-service'
+    id: Build Analysis Service Image
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+    id: Push Analysis Service Image
+
+  # Deploy analysis-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'analysis-service'
+      - '--image'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account'
+      - 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'PROJECT_ID=${PROJECT_ID},DB_BACKEND=firestore'
+      - '--set-secrets'
+      - 'GEMINI_API_KEY=gemini-api-key:latest'
+    id: Deploy Analysis Service to Cloud Run
+
+  # Build and push web-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME}'
+      - '--build-arg'
+      - 'VITE_APP_API_BASE_URL=${_API_BASE_URL}'
+      - './web-service'
+    id: Build Web Service Image
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME}'
+    id: Push Web Service Image
+
+  # Deploy web-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'web-service'
+      - '--image'
+      - 'gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account'
+      - 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--set-env-vars'
+      - 'VITE_APP_API_BASE_URL=${_API_BASE_URL}'
+    id: Deploy Web Service to Cloud Run
+
+substitutions:
+  _TAG_NAME: 'latest' # Default tag name, can be overridden
+  _REGION: 'asia-east1' # Default region, can be overridden
+  _API_BASE_URL: 'https://analysis-service-placeholder-url/api' # Override with the actual backend URL
