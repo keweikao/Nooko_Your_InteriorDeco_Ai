@@ -614,3 +614,615 @@ Gemini 整合採用**分階段提取模式**：
 - [ ] 在生產環境測試 Gemini 整合功能
 - [ ] 根據需要調整動態系統提示或規格提取邏輯
 - [ ] 規劃 Phase 2-5 的實施時程
+
+---
+
+## 2025年11月17日 - Phase 2-5 架構規劃：完整對話持久化與規格驗證
+
+### 總結
+根據用戶的新需求「當次的對話紀錄需要儲存起來，因為我要讓LLM在當次可以根據消費者在當次所提供的所有資訊來回應，而不是只讀取部分訊息」，使用 feature-dev:code-architect subagent 進行了全面的 Phase 2-5 架構規劃。該規劃確保 LLM 在生成回應時能夠訪問**完整的會話對話歷史**，而不是局部信息。
+
+### 核心需求
+✨ **完整對話持久化**：所有當次的對話消息都需要被持久化存儲，以便 LLM 能在同一會話中基於所有已提供的信息進行回應。
+
+### Phase 2-5 實施計劃概述
+
+#### **Phase 2：Firestore 持久化與智能上下文管理** (1-2 天)
+
+**主要目標**：實施完整的對話存儲系統，支持完整上下文傳遞
+
+**Firestore 數據庫結構**：
+
+```
+Collection: conversations/
+├─ Document: {conversation_id}
+│  ├─ conversation_id: string (PK)
+│  ├─ project_id: string
+│  ├─ stage: "greeting" | "assessment" | "clarification" | "summary" | "complete"
+│  ├─ progress: 0-100 (completeness percentage)
+│  ├─ message_count: number (total messages in session)
+│  ├─ created_at: timestamp
+│  ├─ updated_at: timestamp
+│  └─ Subcollection: messages/
+│     └─ Document: {message_id} (auto-generated)
+│        ├─ sender: "user" | "agent"
+│        ├─ content: string (complete message text)
+│        ├─ timestamp: timestamp
+│        ├─ metadata: {
+│        │    spec_updates: {...} (if contains spec info)
+│        │    confidence_scores: {...}
+│        │  }
+│  └─ Subcollection: extracted_specs/
+│     └─ Document: "current_version" (single doc, always overwritten)
+│        ├─ project_type: string | null
+│        ├─ style_preference: string | null
+│        ├─ budget_range: string | null
+│        ├─ timeline: string | null
+│        ├─ total_area: float | null
+│        ├─ focus_areas: [string]
+│        ├─ material_preference: string | null
+│        ├─ quality_level: string | null
+│        ├─ special_requirements: [string]
+│        ├─ completeness_score: 0-1
+│        ├─ confidence_scores: {field: score}
+│        └─ last_updated: timestamp
+```
+
+**Task 2.1: 創建 ConversationService** (4-5 小時)
+
+新建 `analysis-service/src/services/conversation_service.py`：
+
+```python
+from google.cloud import firestore
+from typing import List, Optional, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+class ConversationService:
+    """Firestore 持久化對話服務"""
+
+    def __init__(self):
+        self.db = firestore.Client()
+        self.conversations_col = self.db.collection("conversations")
+
+    async def create_conversation(
+        self,
+        conversation_id: str,
+        project_id: str
+    ) -> Dict[str, Any]:
+        """初始化新的對話會話"""
+        data = {
+            "conversation_id": conversation_id,
+            "project_id": project_id,
+            "stage": "greeting",
+            "progress": 0,
+            "message_count": 0,
+            "created_at": firestore.SERVER_TIMESTAMP,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }
+        self.conversations_col.document(conversation_id).set(data)
+        return data
+
+    async def save_message(
+        self,
+        conversation_id: str,
+        sender: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """保存單一消息到 Firestore"""
+        message_ref = self.conversations_col.document(
+            conversation_id
+        ).collection("messages").add({
+            "sender": sender,
+            "content": content,
+            "timestamp": firestore.SERVER_TIMESTAMP,
+            "metadata": metadata or {}
+        })
+
+        # 增加消息計數
+        self.conversations_col.document(conversation_id).update({
+            "message_count": firestore.Increment(1),
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        return message_ref[1].id
+
+    async def get_conversation_history(
+        self,
+        conversation_id: str,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """檢索完整的對話歷史（用於傳遞給LLM）"""
+        messages_ref = self.conversations_col.document(
+            conversation_id
+        ).collection("messages").order_by(
+            "timestamp",
+            direction=firestore.Query.DIRECTION_ASCENDING
+        ).limit(limit)
+
+        docs = messages_ref.stream()
+        return [
+            {
+                "id": doc.id,
+                "sender": doc.get("sender"),
+                "content": doc.get("content"),
+                "timestamp": doc.get("timestamp"),
+                "metadata": doc.get("metadata", {})
+            }
+            for doc in docs
+        ]
+
+    async def update_extracted_specs(
+        self,
+        conversation_id: str,
+        specs: Dict[str, Any]
+    ) -> None:
+        """更新當前會話的已提取規格"""
+        self.conversations_col.document(
+            conversation_id
+        ).collection("extracted_specs").document(
+            "current_version"
+        ).set(specs, merge=True)
+
+    async def update_conversation_stage(
+        self,
+        conversation_id: str,
+        stage: str,
+        progress: int
+    ) -> None:
+        """更新對話進度和階段"""
+        self.conversations_col.document(conversation_id).update({
+            "stage": stage,
+            "progress": progress,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+    async def get_current_specs(
+        self,
+        conversation_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """檢索當前會話的已提取規格"""
+        doc = self.conversations_col.document(
+            conversation_id
+        ).collection("extracted_specs").document(
+            "current_version"
+        ).get()
+
+        return doc.to_dict() if doc.exists else None
+```
+
+**Task 2.2: 修改 API 端點使用 Firestore** (3-4 小時)
+
+修改 `analysis-service/src/api/projects.py`：
+- `send_message_stream()` 端點改為：
+  1. 直接從 Firestore 檢索完整對話歷史
+  2. 將完整歷史傳遞給 Gemini（替代當前的部分歷史）
+  3. 每次回應完成後，同時保存消息和更新的規格到 Firestore
+
+**Task 2.3: 智能令牌管理** (2-3 小時)
+
+新建 `analysis-service/src/utils/token_counter.py`：
+```python
+def estimate_tokens(text: str) -> int:
+    """估算文本的 token 數量 (約 4 字符 = 1 token)"""
+    return len(text) // 4
+
+async def get_context_window(
+    conversation_id: str,
+    conversation_service: ConversationService,
+    max_tokens: int = 8000
+) -> List[Dict[str, Any]]:
+    """
+    智能上下文窗口：
+    - 始終包含最初的問候消息（上下文）
+    - 加入最近的消息直到達到 token 限制
+    """
+    all_messages = await conversation_service.get_conversation_history(
+        conversation_id,
+        limit=100
+    )
+
+    if not all_messages:
+        return []
+
+    context = [all_messages[0]]  # 始終包含問候
+    total_tokens = estimate_tokens(all_messages[0]["content"])
+
+    # 從最新消息開始往回加入
+    for msg in reversed(all_messages[1:]):
+        msg_tokens = estimate_tokens(msg["content"])
+        if total_tokens + msg_tokens > max_tokens:
+            break
+        context.append(msg)
+        total_tokens += msg_tokens
+
+    return context[::-1]  # 恢復時間順序
+```
+
+**Task 2.4: 單元測試** (2-3 小時)
+
+新建以下測試文件：
+- `analysis-service/tests/test_conversation_service.py`
+- `analysis-service/tests/test_token_counter.py`
+
+---
+
+#### **Phase 3：規格驗證與動態澄清** (2-3 天)
+
+**主要目標**：確保提取的規格足夠清晰且完整，在進行報價和渲染前自動進行驗證
+
+**Task 3.1: 創建規格驗證器** (4-5 小時)
+
+新建 `analysis-service/src/services/spec_validator.py`：
+
+```python
+from typing import Dict, Any, List, Optional
+import logging
+
+logger = logging.getLogger(__name__)
+
+class SpecificationValidator:
+    """驗證規格的完整度和信心分數"""
+
+    LOW_CONFIDENCE_THRESHOLD = 0.6
+    COMPLETENESS_THRESHOLD = 0.7
+
+    CRITICAL_FIELDS = [
+        "project_type",
+        "budget_range",
+        "style_preference",
+        "focus_areas"
+    ]
+
+    async def validate_specs(
+        self,
+        specs: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """驗證規格並返回驗證報告"""
+        confidence_scores = specs.get("confidence_scores", {})
+        completeness = specs.get("completeness_score", 0)
+
+        # 檢查低信心分數的關鍵字段
+        low_confidence_fields = [
+            field for field in self.CRITICAL_FIELDS
+            if confidence_scores.get(field, 0) < self.LOW_CONFIDENCE_THRESHOLD
+        ]
+
+        # 檢查總體完整度
+        is_complete = completeness >= self.COMPLETENESS_THRESHOLD
+
+        return {
+            "is_valid": is_complete and not low_confidence_fields,
+            "completeness_score": completeness,
+            "low_confidence_fields": low_confidence_fields,
+            "confidence_scores": confidence_scores,
+            "needs_clarification": len(low_confidence_fields) > 0,
+            "missing_critical_fields": [
+                field for field in self.CRITICAL_FIELDS
+                if not specs.get(field)
+            ]
+        }
+
+    async def generate_clarification_questions(
+        self,
+        specs: Dict[str, Any],
+        validation_report: Dict[str, Any]
+    ) -> List[str]:
+        """根據低信心字段生成澄清問題"""
+        low_fields = validation_report.get("low_confidence_fields", [])
+        missing_fields = validation_report.get("missing_critical_fields", [])
+
+        questions = []
+
+        # 為低信心字段生成問題
+        field_prompts = {
+            "project_type": "請確認您計劃進行全屋翻新還是局部改造？",
+            "budget_range": "能否告訴我您的預算範圍？",
+            "style_preference": "您的設計風格偏好是什麼？",
+            "focus_areas": "哪些區域是您重點改造的對象？",
+            "total_area": "房間的總面積是多少？",
+            "timeline": "施工的時間限制是什麼？"
+        }
+
+        for field in low_fields + missing_fields:
+            if field in field_prompts:
+                questions.append(field_prompts[field])
+
+        return questions
+```
+
+**Task 3.2: 整合到對話流程** (3-4 小時)
+
+修改 `send_message_stream()` 端點：
+1. 每次提取規格後，執行驗證
+2. 如果檢測到低信心或缺失字段，自動生成澄清問題
+3. 更新系統提示以包含已確認的信息
+
+**Task 3.3: 澄清對話測試** (2-3 小時)
+
+新建 `analysis-service/tests/test_spec_validator.py`
+
+---
+
+#### **Phase 4：前端 UI 增強與實時規格跟蹤** (2-3 天)
+
+**主要目標**：為用戶提供實時的規格提取進度反饋
+
+**Task 4.1: 規格進度儀表板組件** (4-5 小時)
+
+新建 `web-service/src/components/SpecificationProgress.jsx`：
+
+```jsx
+import React, { useState, useEffect } from 'react';
+import '../styles/SpecificationProgress.css';
+
+export function SpecificationProgress({ conversationId, apiBaseUrl }) {
+  const [specs, setSpecs] = useState(null);
+  const [validationReport, setValidationReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // 每 5 秒檢查一次規格更新
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(
+          `${apiBaseUrl}/projects/conversation/${conversationId}/specs`
+        );
+        const data = await response.json();
+        setSpecs(data.current_specs);
+        setValidationReport(data.validation_report);
+      } catch (error) {
+        console.error('Failed to fetch specifications:', error);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [conversationId, apiBaseUrl]);
+
+  if (!specs) {
+    return <div className="specs-container">載入規格中...</div>;
+  }
+
+  const renderFieldStatus = (field, value, confidence) => {
+    const hasValue = value !== null && value !== undefined;
+    const status = hasValue ? 'collected' : 'pending';
+    const confidenceClass = confidence >= 0.8 ? 'high' : confidence >= 0.5 ? 'medium' : 'low';
+
+    return (
+      <div key={field} className={`spec-field ${status} ${confidenceClass}`}>
+        <span className="field-name">{field}</span>
+        <span className="field-value">{hasValue ? String(value) : '待收集'}</span>
+        {confidence && <span className="confidence">{Math.round(confidence * 100)}%</span>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="specs-container">
+      <div className="specs-header">
+        <h3>規格收集進度</h3>
+        <div className="progress-bar">
+          <div
+            className="progress-fill"
+            style={{ width: `${specs.completeness_score * 100}%` }}
+          />
+        </div>
+        <span className="progress-text">{Math.round(specs.completeness_score * 100)}% 完成</span>
+      </div>
+
+      <div className="specs-grid">
+        {renderFieldStatus('項目類型', specs.project_type, specs.confidence_scores?.project_type)}
+        {renderFieldStatus('風格偏好', specs.style_preference, specs.confidence_scores?.style_preference)}
+        {renderFieldStatus('預算範圍', specs.budget_range, specs.confidence_scores?.budget_range)}
+        {renderFieldStatus('時程', specs.timeline, specs.confidence_scores?.timeline)}
+        {renderFieldStatus('面積', specs.total_area && `${specs.total_area}㎡`, specs.confidence_scores?.total_area)}
+        {renderFieldStatus('重點區域', specs.focus_areas?.join('、'), specs.confidence_scores?.focus_areas)}
+      </div>
+
+      {validationReport?.needs_clarification && (
+        <div className="clarification-alert">
+          <h4>需要進一步澄清</h4>
+          <ul>
+            {validationReport.low_confidence_fields.map(field => (
+              <li key={field}>{field} - 信心分數不足，需要更多信息</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+**Task 4.2: 規格編輯界面** (3-4 小時)
+
+新建 `web-service/src/components/SpecificationEditor.jsx` - 允許用戶手動調整或確認提取的規格
+
+**Task 4.3: 導出功能** (2-3 小時)
+
+新建 `web-service/src/components/ExportButton.jsx` - 導出規格為 PDF 或 JSON
+
+---
+
+#### **Phase 5：測試、優化與生產就緒** (1-2 天)
+
+**Task 5.1: 集成測試** (2-3 小時)
+
+新建 `analysis-service/tests/test_integration_conversation_flow.py`：
+- 端到端對話流程測試
+- Firestore 持久化驗證
+- 規格提取和驗證流程
+- 上下文窗口管理
+
+**Task 5.2: 性能優化** (2-3 小時)
+
+- Firestore 索引優化（messages 按 timestamp 排序）
+- LLM 調用優化（批處理、緩存）
+- 前端輪詢間隔調整
+
+**Task 5.3: 監控與日誌** (1-2 小時)
+
+新建 `analysis-service/src/utils/metrics.py`：
+- Cloud Monitoring 集成
+- 對話長度和 token 使用統計
+- 規格提取準確度跟蹤
+
+**Task 5.4: 文件和部署** (1-2 小時)
+
+- 更新 API 文件
+- Cloud Run 部署配置確認
+- 本地測試清單
+
+---
+
+### 文件結構與修改清單
+
+**新建文件** (12 個):
+```
+analysis-service/
+├─ src/services/
+│  ├─ conversation_service.py (NEW)
+│  └─ spec_validator.py (NEW)
+├─ src/utils/
+│  ├─ token_counter.py (NEW)
+│  └─ metrics.py (NEW)
+└─ tests/
+   ├─ test_conversation_service.py (NEW)
+   ├─ test_spec_validator.py (NEW)
+   ├─ test_token_counter.py (NEW)
+   └─ test_integration_conversation_flow.py (NEW)
+
+web-service/
+└─ src/components/
+   ├─ SpecificationProgress.jsx (NEW)
+   ├─ SpecificationEditor.jsx (NEW)
+   ├─ ExportButton.jsx (NEW)
+   └─ styles/
+      └─ SpecificationProgress.css (NEW)
+
+docs/
+├─ API.md (NEW - 完整 API 文件)
+└─ DEPLOYMENT_PHASE2-5.md (NEW - 部署指南)
+```
+
+**修改文件** (4 個):
+```
+analysis-service/
+├─ src/api/projects.py (修改 send_message_stream() 和 init_conversation())
+├─ src/services/gemini_service.py (微調以支持完整對話歷史)
+├─ requirements.txt (無需新增，firebase-admin 已含)
+└─ cloudbuild.yaml (可能需要調整 build 步驟)
+
+web-service/
+└─ src/App.jsx (集成新組件)
+```
+
+---
+
+### 工作估算
+
+| Phase | 主要任務 | 預估工時 | 優先級 |
+|-------|--------|--------|-------|
+| 2.1 | ConversationService | 4-5 小時 | P0 |
+| 2.2 | API 端點修改 | 3-4 小時 | P0 |
+| 2.3 | Token 管理 | 2-3 小時 | P1 |
+| 2.4 | 測試 | 2-3 小時 | P1 |
+| **Phase 2 合計** | | **11-15 小時** | **1-2 天** |
+| 3.1 | 規格驗證器 | 4-5 小時 | P0 |
+| 3.2 | 對話整合 | 3-4 小時 | P0 |
+| 3.3 | 驗證測試 | 2-3 小時 | P1 |
+| **Phase 3 合計** | | **9-12 小時** | **1-2 天** |
+| 4.1 | 進度儀表板 | 4-5 小時 | P1 |
+| 4.2 | 編輯界面 | 3-4 小時 | P2 |
+| 4.3 | 導出功能 | 2-3 小時 | P2 |
+| **Phase 4 合計** | | **9-12 小時** | **1-2 天** |
+| 5.1 | 集成測試 | 2-3 小時 | P1 |
+| 5.2 | 優化 | 2-3 小時 | P2 |
+| 5.3 | 監控 | 1-2 小時 | P2 |
+| 5.4 | 文件 | 1-2 小時 | P2 |
+| **Phase 5 合計** | | **6-10 小時** | **1 天** |
+| | **總計** | **35-49 小時** | **6-10 天** |
+
+---
+
+### 風險評估
+
+| 風險 | 影響 | 可能性 | 緩解策略 |
+|-----|------|--------|---------|
+| Firestore 查詢延遲 | 高 | 中 | 實施合適索引；使用批量查詢 |
+| Token 限制超出 | 中 | 中 | 實施智能上下文窗口；定期測試 |
+| LLM API 超額 | 高 | 低 | 監控使用；設置配額 |
+| 規格提取準確度 | 高 | 中 | 人工驗證工作流；信心閾值調整 |
+
+---
+
+### 成功 KPI
+
+- ✅ 完整對話歷史在 Firestore 中持久化
+- ✅ Gemini 在每次回應時能訪問完整對話
+- ✅ 規格提取信心分數平均 > 0.8
+- ✅ 澄清問題自動生成成功率 > 90%
+- ✅ 前端規格進度實時更新 (< 6 秒)
+- ✅ E2E 對話流程測試通過率 100%
+- ✅ 部署到 Cloud Run 無錯誤
+
+---
+
+### 架構圖
+
+```
+用戶輸入 (文本)
+    ↓
+/conversation/message-stream 端點
+    ↓
+ConversationService.save_message() → Firestore 存儲
+    ↓
+get_context_window() → 檢索完整對話歷史 (智能 token 管理)
+    ↓
+Gemini API (動態系統提示 + 完整對話歷史)
+    ↓
+流式回應 (character-by-character)
+    ↓
+_extract_specifications() → 提取結構化規格
+    ↓
+SpecValidator → 驗證規格完整度
+    ↓
+ConversationService.update_extracted_specs() → Firestore 存儲
+    ↓
+前端接收回應 + SpecificationProgress 實時更新
+    ↓
+用戶確認或提供更多信息
+```
+
+### 備註
+
+此規劃完全滿足用戶的核心需求：**完整的當次對話持久化，使 LLM 能基於所有會話信息進行回應**。Phase 2 是關鍵實施階段，Phase 3-5 則是驗證、優化和完善。
+
+---
+
+## 2025年11月17日 - UI/UX 優化：統一頭像與上線狀態顯示
+
+### 總結
+根據使用者回饋，統一並優化了兩個獨立聊天介面 (`ConversationUI` 和 `ChatInterface`) 中的代理人 (Agent) 與使用者 (User) 的頭像顯示。同時，為代理人頭像新增了「上線」狀態的綠色指示燈，提升了介面的專業度和一致性。
+
+### 已完成任務詳情
+- [x] **統一代理人頭像**:
+    - 在 `MessageItem.jsx`（聊天訊息）和 `AgentCard.jsx`（施工主任資訊卡）中，將代理人的頭像從預設的 "🤖" 表情符號，統一更新為專業的 "A" 字母佔位圖。
+- [x] **新增使用者頭像**:
+    - 在次要聊天介面 `ChatInterface.jsx` 中，將原本顯示為純文字的使用者名稱 ("Stephen")，修改為帶有 "S" 字母的佔位圖頭像，與代理人頭像風格保持一致。
+- [x] **實作上線狀態顯示**:
+    - 為 `MessageItem.jsx` 和 `AgentCard.jsx` 中的代理人頭像右下角，都添加了代表「上線」的綠色圓點狀態指示燈。
+    - 修改了 `ConversationUI.css`，將 `idle`（待命）狀態的顏色從灰色改為綠色，以符合「上線」的視覺定義。
+
+### 變更檔案
+- `web-service/src/components/conversation/MessageItem.jsx`: 更新代理人頭像為圖片，並添加狀態指示燈。
+- `web-service/src/components/conversation/AgentCard.jsx`: 同步更新代理人頭像，確保視覺一致。
+- `web-service/src/components/ConversationUI.css`: 將 `status-idle` 狀態的顏色修改為綠色。
+- `web-service/src/components/ChatInterface.jsx`: 重構訊息元件，將文字發送者替換為圖片頭像。
+
+### 關鍵決策
+1.  **採用佔位圖服務**: 使用 `placehold.co` 服務來動態生成頭像，確保了視覺的專業性和一致性，同時方便未來替換為真實圖片。
+2.  **統一狀態語意**: 將「待命」(idle) 狀態的視覺表現定義為綠色，使其符合使用者對於「上線」狀態的直觀理解。
+3.  **處理多重 UI 實作**: 識別並分別修改了專案中存在的兩個獨立聊天 UI 實作 (`ConversationUI` 和 `ChatInterface`)，確保使用者請求在所有相關介面中都得到滿足。
