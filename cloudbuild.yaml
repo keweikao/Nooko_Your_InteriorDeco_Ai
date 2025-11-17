@@ -1,3 +1,6 @@
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+options:
+  logging: CLOUD_LOGGING_ONLY
 steps:
   # Build and push analysis-service Docker image
   - name: 'gcr.io/cloud-builders/docker'

@@ -25,26 +25,44 @@ const ChatInterface = ({ initialMessages = [] }) => {
     setInputValue('');
   };
 
-  const Message = ({ msg }) => (
-    <div style={{ 
-      margin: '10px', 
-      padding: '10px', 
-      borderRadius: '8px', 
-      backgroundColor: msg.agent === 'USER' ? '#dcf8c6' : '#fff',
-      alignSelf: msg.agent === 'USER' ? 'flex-end' : 'flex-start',
-      maxWidth: '70%',
-    }}>
-      <strong>{msg.agent}:</strong>
-      <p style={{ margin: '5px 0 0' }}>{msg.message}</p>
-      {msg.metadata?.image_url && (
+  const Message = ({ msg }) => {
+    const isUser = msg.agent === 'USER';
+    const avatarSrc = isUser 
+      ? 'https://placehold.co/40x40/dcf8c6/888?text=S&font=sans' 
+      : 'https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans';
+
+    return (
+      <div style={{ 
+        margin: '10px', 
+        display: 'flex',
+        flexDirection: isUser ? 'row-reverse' : 'row',
+        alignItems: 'flex-start',
+        alignSelf: isUser ? 'flex-end' : 'flex-start',
+      }}>
         <img 
-          src={msg.metadata.image_url} 
-          alt="Style Reference" 
-          style={{ maxWidth: '100%', borderRadius: '4px', marginTop: '10px' }} 
+          src={avatarSrc} 
+          alt={`${msg.agent} avatar`} 
+          style={{ width: '40px', height: '40px', borderRadius: '50%', margin: '0 10px' }} 
         />
-      )}
-    </div>
-  );
+        <div style={{ 
+          padding: '10px', 
+          borderRadius: '8px', 
+          backgroundColor: isUser ? '#dcf8c6' : '#fff',
+          maxWidth: '70%',
+          border: '1px solid #eee'
+        }}>
+          <p style={{ margin: '0' }}>{msg.message}</p>
+          {msg.metadata?.image_url && (
+            <img 
+              src={msg.metadata.image_url} 
+              alt="Style Reference" 
+              style={{ maxWidth: '100%', borderRadius: '4px', marginTop: '10px' }} 
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '80vh', border: '1px solid #ccc' }}>

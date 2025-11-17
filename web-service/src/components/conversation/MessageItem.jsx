@@ -32,8 +32,9 @@ function MessageItem({ message, isStreaming = false }) {
   return (
     <div className={`message-item ${isAgent ? 'agent-message' : 'user-message'}`}>
       {isAgent && (
-        <div className="message-avatar">
+        <div className="relative message-avatar">
           <img src="https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans" alt="Agent Avatar" className="avatar-circle" />
+          <span className="absolute bottom-0 right-0 block w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
         </div>
       )}
 

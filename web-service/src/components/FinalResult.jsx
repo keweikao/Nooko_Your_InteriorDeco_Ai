@@ -15,6 +15,7 @@ const FinalResult = ({ projectId, apiBaseUrl, projectBrief, onBookingRequest }) 
   const fetchAnalysisResult = async () => {
     try {
       setLoading(true);
+      // 從後端 /analysis-result 取得多 Agent 的成果（input: projectId, output: quote/rendering_summary）
       const response = await fetch(`${apiBaseUrl}/projects/${projectId}/analysis-result`, {
         method: 'GET',
         headers: {

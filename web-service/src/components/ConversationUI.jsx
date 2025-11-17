@@ -16,6 +16,8 @@ function ConversationUI({ projectId, apiBaseUrl, onConversationComplete }) {
     messages,
     agent,
     progress,
+    missingFields,
+    canComplete,
     loading,
     error,
     streamingMessageId,
@@ -31,6 +33,7 @@ function ConversationUI({ projectId, apiBaseUrl, onConversationComplete }) {
   };
 
   const isInputDisabled = loading || streamingMessageId !== null;
+  console.log('ConversationUI - isInputDisabled:', isInputDisabled, 'loading:', loading, 'streamingMessageId:', streamingMessageId); // Added log
 
   if (loading && messages.length === 0) {
     return (
@@ -58,7 +61,7 @@ function ConversationUI({ projectId, apiBaseUrl, onConversationComplete }) {
       {/* 標題 */}
       <div className="conversation-header">
         <h1 className="conversation-title">Nooko 裝潢 AI 夥伴</h1>
-        <p className="conversation-subtitle">與施工主任進行需求訪談</p>
+        <p className="conversation-subtitle">與 HouseIQ 進行需求訪談</p>
       </div>
 
       {/* Agent 卡片 */}
@@ -66,6 +69,35 @@ function ConversationUI({ projectId, apiBaseUrl, onConversationComplete }) {
 
       {/* 進度指示 */}
       <ConversationProgress progress={progress} />
+
+      {/* 待補資訊面板 */}
+      {/* 顯示階段與缺失欄位的狀態面板 (input: SSE metadata, output: UI 中的待補列表) */}
+      <div className="conversation-status-panel">
+        <div className="conversation-status-left">
+          <p className="conversation-stage-label">
+            目前階段：<span>{progress.stage}</span>
+          </p>
+          <p className="conversation-stage-desc">{progress.description}</p>
+        </div>
+        <div className="conversation-status-right">
+          <p className="missing-title">待補資訊（{missingFields.length}）</p>
+          {missingFields.length === 0 ? (
+            <p className="missing-empty">所有核心資訊已蒐集完成 🎉</p>
+          ) : (
+            <ul className="missing-list">
+              {missingFields.slice(0, 4).map((item) => (
+                <li key={item.id}>
+                  <span className="missing-label">{item.label}</span>
+                  <span className="missing-category">{item.category}</span>
+                </li>
+              ))}
+              {missingFields.length > 4 && (
+                <li className="missing-more">還有 {missingFields.length - 4} 項待補...</li>
+              )}
+            </ul>
+          )}
+        </div>
+      </div>
 
       {/* 消息區域 */}
       <div className="conversation-messages-wrapper">
@@ -83,16 +115,22 @@ function ConversationUI({ projectId, apiBaseUrl, onConversationComplete }) {
       />
 
       {/* 完成按鈕 (當對話完成時顯示) */}
-      {progress.stage === 'complete' && (
-        <div className="conversation-complete">
-          <button
-            className="complete-button"
-            onClick={handleConversationEnd}
-          >
-            查看分析結果
-          </button>
-        </div>
-      )}
+      {/* 完成區塊：只有 missingFields 空且後端允許時才可觸發完成 API */}
+      <div className="conversation-complete">
+        <button
+          className="complete-button"
+          onClick={handleConversationEnd}
+          disabled={!canComplete || isInputDisabled}
+          title={!canComplete ? '請先補齊所有核心資訊再查看結果' : ''}
+        >
+          {canComplete ? '查看分析結果' : '資訊尚未齊全'}
+        </button>
+        {!canComplete && (
+          <p className="complete-helper">
+            尚有 {missingFields.length} 項資訊未完成，請繼續與 HouseIQ 對話。
+          </p>
+        )}
+      </div>
 
       {/* 隱私承諾 */}
       <div className="conversation-footer">

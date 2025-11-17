@@ -1226,3 +1226,42 @@ ConversationService.update_extracted_specs() → Firestore 存儲
 1.  **採用佔位圖服務**: 使用 `placehold.co` 服務來動態生成頭像，確保了視覺的專業性和一致性，同時方便未來替換為真實圖片。
 2.  **統一狀態語意**: 將「待命」(idle) 狀態的視覺表現定義為綠色，使其符合使用者對於「上線」狀態的直觀理解。
 3.  **處理多重 UI 實作**: 識別並分別修改了專案中存在的兩個獨立聊天 UI 實作 (`ConversationUI` 和 `ChatInterface`)，確保使用者請求在所有相關介面中都得到滿足。
+
+## 2025年11月17日 - 啟動 Agent 1 規劃研究
+
+### 總結
+應使用者要求針對 Agent 1 的規劃重新審視與研究。今日首先回顧整體 `DEVELOPMENT_LOG.md` 近期記錄，確認現行 Agent 相關成果與既有規劃，為後續比對 specs 與提出建議奠定基礎。
+
+### 進度
+- [x] 閱讀 `DEVELOPMENT_LOG.md` 最新條目，重新梳理專案背景與先前對 Agent 1 的調整內容，確認研究切入點。
+- [x] 詳閱 `specs/002-interior-deco-ai/spec.md`、`plan.md` 與 `tasks.md`，針對 Agent 1 的角色、使用者故事與功能需求建立完整脈絡，方便後續差距分析。
+- [x] 深入研讀 Agent 1 相關實作文件（`IMPLEMENTATION_SUMMARY.md`、`PLAN_B_IMPLEMENTATION_SUMMARY.md`、`CONVERSATION_ARCHITECTURE.md`、`BACKEND_SSE_ENDPOINTS.md`、`CONSTRUCTION_TRANSLATOR_GUIDE.md`），並檢視 `analysis-service/src/agents` 及 `api/projects.py` 具體程式，盤點現況設計。
+- [x] 追蹤前端 `web-service/src/hooks/useConversation.js` 等對話元件的實際呼叫方式，確認與後端 SSE 端點間的契合度與落差。
+- [x] 彙整問卷版 Agent 所要求的資訊欄位並對照現行真實對話萃取欄位，整理出缺失面向，為下一步對話策略設計打底。
+- [x] 擬定「真實對話驅動資訊收集」策略：定義階段式狀態機、欄位完成度矩陣、提示模板與完成條件，確保能在自由對話中自然蒐集問卷所需全部欄位。
+- [x] 針對「對話卡住但無法追蹤原因」的新需求，審視 `ConversationService` 與 SSE 端點，目前僅儲存訊息與階段資訊，缺少事件日誌或錯誤紀錄。
+- [x] 擬定事件日誌資料模型：每個 `conversation` 下新增 `events` 子集合，欄位含 `type`、`severity`、`source`、`description`、`payload`、`timestamp`，並定義觸發時機（初始化、用戶訊息、Agent 流、完成、錯誤），同時為 `ConversationService` 增加 `log_event()` 介面。
+- [x] 提出新 API / UI 需求：新增 `GET /projects/{project_id}/conversation/{conversation_id}/events` 端點，支援時間與 severity 篩選，`complete` 與 SSE 端點在關鍵節點寫入事件；前端 Conversation UI 增加「診斷面板」或管理頁以顯示事件序列與最後錯誤原因。
+- [x] 落實欄位追蹤原型：新增 `SpecTracker` 定義 16 個核心欄位與信心門檻，整合 Firestore `collected_specs`/`missing_fields`，讓 SSE metadata 能輸出 stage/progress/missingFields，並在 `/conversation/init` 時初始化狀態。
+- [x] 擴充 Gemini 服務：引入 `SpecTracker` 提供動態提示與欄位缺口列表，重新設計 extraction prompt 以覆蓋所有欄位並輸出信心值，並加入 fallback 模式（在無法呼叫 Gemini 時仍能提供基本回覆與欄位推測）。
+- [x] `/conversation/complete` 改用 Firestore `collected_specs` 與 `missing_fields` 檢查完成度，若尚有缺口即回傳 400，完成後生成 `ProjectBrief`/summary/analysis，並寫入完成事件；同步補齊單元測試覆蓋成功與失敗情境。
+
+## 2025年11月17日 - 真實對話串接多 Agent 並完成成果頁 (Stephen)
+
+### 總結
+將真實對話流程與多 Agent 產出串整：Conversation UI 現在會顯示欄位完成度與待補資訊，後端 `SpecTracker` 統一管理欄位狀態並在 SSE 中帶回 stage/missingFields；完成對話時若資訊齊全，會觸發 Contractor/Designer 產出報價與渲染圖並透過 `/api/projects/{id}/analysis-result` 提供給成果頁。預約丈量表單則精簡為姓名＋電話，方便後續轉換。
+
+### 更新重點
+- `analysis-service/src/services/spec_tracking.py`: 定義欄位清單、進度計算與缺口列表，供 Gemini prompt 與 SSE 使用。
+- `analysis-service/src/api/projects.py`: SSE metadata now returns stage/progress/missingFields；`/conversation/complete` 以 Firestore 狀態檢查完成度並觸發 Contractor/Designer，寫入 quote/rendering；新增 `/analysis-result` 供前端讀取。
+- `analysis-service/src/services/gemini_service.py`: 擴充 prompt 與 extraction，且在無外部 API 時提供 fallback 回覆與欄位推測。
+- `analysis-service/src/services/pdf_service.py`: 加入 reportlab 缺漏時的文字 fallback。
+- `analysis-service/tests/*`: 更新測試替身、補上完成／未完成對話、分析結果查詢等測試案例。
+- `web-service/src/hooks/useConversation.js` & `ConversationUI.jsx/css`: 顯示階段與待補欄位，資訊未齊全時無法完成；按鈕與 UI 更新。
+- `web-service/src/components/FinalResult.jsx`: 連線新 `/analysis-result` 端點，顯示渲染圖與報價，CTA 維持預約/下載。
+- `web-service/src/components/BookingForm.jsx`: 表單縮減為姓名與電話，搭配新的 CTA 流程。
+- 新增 `/api/projects/{project_id}/book` 預約 API 並串接前端 BookingForm，資料直接寫入 Firestore（`db_service.save_booking`）。
+
+### 下一步
+1. 系統性閱讀與 Agent 1 相關的 specs 與規劃文件。
+2. 彙整現況與痛點，提出具體調整建議。

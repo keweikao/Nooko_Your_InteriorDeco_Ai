@@ -37,7 +37,7 @@ function AgentCard({ agent }) {
       <div className="agent-header">
         <div className="agent-avatar-container">
           <img
-            src={agent?.avatar || '🤖'}
+            src={agent?.avatar || 'https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans'}
             alt={agent?.name || 'Agent'}
             className="agent-avatar-image"
           />
@@ -45,14 +45,14 @@ function AgentCard({ agent }) {
         </div>
 
         <div className="agent-info">
-          <h2 className="agent-name">{agent?.name || '施工主任'}</h2>
+          <h2 className="agent-name">{agent?.name || 'HouseIQ'}</h2>
           <p className="agent-status-text">{getStatusText(agent?.status)}</p>
         </div>
       </div>
 
       <div className="agent-bio">
         <p>
-          歡迎！我是您的專業施工主任。我會根據您上傳的報價單和裝修需求，
+          歡迎！我是 HouseIQ，您的專業室內設計顧問。我會根據您上傳的報價單和裝修需求，
           為您提供專業的建議和分析。
         </p>
       </div>

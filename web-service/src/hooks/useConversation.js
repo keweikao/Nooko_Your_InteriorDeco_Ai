@@ -4,6 +4,15 @@ import { useState, useCallback, useEffect } from 'react';
  * 對話邏輯 Hook
  * 管理：消息、Agent 狀態、進度、SSE 連接
  */
+const stageDescriptions = {
+  greeting: '開始對話',
+  scope: '了解裝修範圍',
+  lifestyle: '了解生活與空間使用',
+  budget: '釐清預算與時程',
+  construction: '確認施工細節',
+  summary: '資訊已齊備，可準備分析'
+};
+
 function useConversation(projectId, apiBaseUrl) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
@@ -16,6 +25,7 @@ function useConversation(projectId, apiBaseUrl) {
   const [error, setError] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState(null);
+  const [missingFields, setMissingFields] = useState([]); // 從 SSE metadata 取得的待補欄位列表
 
   /**
    * 初始化對話 - 調用後端 /conversation/init 端點
@@ -60,10 +70,11 @@ function useConversation(projectId, apiBaseUrl) {
 
       setIsConnected(true);
       setProgress({
-        current: 10,
+        current: 0,
         stage: 'greeting',
-        description: '開始對話'
+        description: stageDescriptions.greeting
       });
+      setMissingFields([]);
     } catch (err) {
       console.error('初始化對話失敗:', err);
       setError(err.message);
@@ -78,6 +89,7 @@ function useConversation(projectId, apiBaseUrl) {
   const sendMessage = useCallback(
     async (content) => {
       try {
+        setError(null); // Clear any previous errors
         // 添加用戶消息
         const userMessage = {
           id: `msg-${Date.now()}`,
@@ -112,6 +124,7 @@ function useConversation(projectId, apiBaseUrl) {
 
         eventSource.addEventListener('message_chunk', (event) => {
           const data = JSON.parse(event.data);
+          console.log('Received message_chunk:', data); // Added log
 
           if (!agentResponseContent) {
             // 首次 chunk，添加新消息
@@ -126,6 +139,7 @@ function useConversation(projectId, apiBaseUrl) {
             };
             setMessages((prev) => [...prev, agentMessage]);
             setStreamingMessageId(agentResponseId);
+            console.log('Set streamingMessageId:', agentResponseId); // Added log
           }
 
           agentResponseContent += data.chunk || '';
@@ -144,7 +158,8 @@ function useConversation(projectId, apiBaseUrl) {
             if (data.metadata.stage) {
               setProgress((prev) => ({
                 ...prev,
-                stage: data.metadata.stage
+                stage: data.metadata.stage,
+                description: stageDescriptions[data.metadata.stage] || prev.description
               }));
             }
             if (data.metadata.progress !== undefined) {
@@ -153,12 +168,17 @@ function useConversation(projectId, apiBaseUrl) {
                 current: data.metadata.progress
               }));
             }
+            if (data.metadata.missingFields) {
+              setMissingFields(data.metadata.missingFields);
+            }
           }
 
           // 檢查是否完成
           if (data.isComplete) {
+            console.log('Received isComplete: true. Closing EventSource.'); // Added log
             setAgent((prev) => ({ ...prev, status: 'idle' }));
             setStreamingMessageId(null);
+            console.log('Cleared streamingMessageId.'); // Added log
             eventSource.close();
           }
         });
@@ -167,6 +187,7 @@ function useConversation(projectId, apiBaseUrl) {
           console.error('SSE 連接錯誤:', error);
           setAgent((prev) => ({ ...prev, status: 'idle' }));
           setStreamingMessageId(null);
+          console.log('Cleared streamingMessageId due to error.'); // Added log
           eventSource.close();
         });
       } catch (err) {
@@ -182,6 +203,11 @@ function useConversation(projectId, apiBaseUrl) {
    */
   const completeConversation = useCallback(async () => {
     try {
+      if (missingFields.length > 0) {
+        setError('還有資訊尚未補齊，請先回答完所有提問。');
+        return null;
+      }
+
       const response = await fetch(
         `${apiBaseUrl}/projects/${projectId}/conversation/complete`,
         {
@@ -191,7 +217,9 @@ function useConversation(projectId, apiBaseUrl) {
       );
 
       if (!response.ok) {
-        throw new Error(`完成對話失敗: ${response.statusText}`);
+        const detail = await response.json().catch(() => null);
+        const message = detail?.detail?.message || detail?.detail || response.statusText;
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -201,7 +229,7 @@ function useConversation(projectId, apiBaseUrl) {
       setError(err.message);
       return null;
     }
-  }, [projectId, apiBaseUrl]);
+  }, [projectId, apiBaseUrl, missingFields.length]);
 
   /**
    * 組件掛載時初始化對話
@@ -214,6 +242,8 @@ function useConversation(projectId, apiBaseUrl) {
     messages,
     agent,
     progress,
+    missingFields,
+    canComplete: missingFields.length === 0 && progress.stage === 'summary',
     loading,
     error,
     isConnected,

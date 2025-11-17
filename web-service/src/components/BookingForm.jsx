@@ -1,19 +1,41 @@
 import React, { useState } from 'react';
 
-const BookingForm = ({ projectId }) => {
+/**
+ * 簡化版預約表單：僅收集姓名與電話，
+ * Input: projectId (從 App 傳入)，Output: 之後可串接 /projects/book API。
+ */
+const BookingForm = ({ projectId, apiBaseUrl, onBookingComplete }) => {
   const [name, setName] = useState('');
-  const [contact, setContact] = useState('');
+  const [phone, setPhone] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // In a real app, this would call a backend API
-    console.log({
-      projectId,
-      name,
-      contact,
-    });
-    setIsSubmitted(true);
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/book`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone })
+      });
+
+      if (!response.ok) {
+        const detail = await response.json().catch(() => null);
+        throw new Error(detail?.detail || '預約送出失敗，請稍後再試');
+      }
+
+      setIsSubmitted(true);
+      if (onBookingComplete) {
+        onBookingComplete();
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formStyle = {
@@ -60,6 +82,9 @@ const BookingForm = ({ projectId }) => {
     <form style={formStyle} onSubmit={handleSubmit}>
       <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>預約免費到府丈量</h2>
       <p>請留下您的聯絡資訊，專員會盡快與您聯繫，安排專業團隊到府丈量與訪談。</p>
+      {error && (
+        <p style={{ color: '#d32f2f', fontSize: '0.9em' }}>{error}</p>
+      )}
       
       <div>
         <label htmlFor="name">姓名</label>
@@ -74,12 +99,12 @@ const BookingForm = ({ projectId }) => {
       </div>
       
       <div>
-        <label htmlFor="contact">聯絡電話或 Email</label>
+        <label htmlFor="phone">聯絡電話</label>
         <input
-          id="contact"
-          type="text"
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
+          id="phone"
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
           style={inputStyle}
           required
         />
@@ -87,8 +112,8 @@ const BookingForm = ({ projectId }) => {
 
       <input type="hidden" value={projectId} />
 
-      <button type="submit" style={buttonStyle}>
-        確認送出
+      <button type="submit" style={buttonStyle} disabled={isSubmitting}>
+        {isSubmitting ? '送出中...' : '確認送出'}
       </button>
     </form>
   );

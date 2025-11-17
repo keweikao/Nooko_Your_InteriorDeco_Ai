@@ -22,6 +22,8 @@ class MockLLMService:
         logger.info(f"Prompt: {prompt[:200]}...") # Log first 200 chars of prompt
         logger.info(f"-----------------------------")
 
+        task = (context or {}).get("task", "").lower() if context else ""
+
         if "present the final quote" in prompt.lower():
             return (
                 "感謝您的耐心等候！我們的設計師和專業統包商團隊已經為您準備好了初步的設計方案。\n\n"
@@ -29,7 +31,7 @@ class MockLLMService:
                 "**工程方面**，我們的統包商仔細評估了您的需求和屋況，擬定了一份詳細的規格報價單。其中，我們特別標示了幾個『建議項目』，例如全室電線更新和浴室防水加強，這些對於中古屋的居住安全和長期考量非常重要。\n\n"
                 "請您參考下方的渲染圖和報價單，看看是否符合您的期待，或是有任何想要調整的地方，我們都可以隨時討論！"
             )
-        elif "generate_quote" in prompt.lower():
+        elif "generate_quote" in task or "generate_quote" in prompt.lower():
             # Simulate generating a structured quote
             return {
                 "source": "generated_by_contractor_agent",
@@ -57,7 +59,7 @@ class MockLLMService:
                     }
                 ]
             }
-        elif "summarize" in prompt.lower():
+        elif "summarize" in task or "summarize" in prompt.lower():
             # Simulate summarizing the conversation into a ProjectBrief
             return {
                 "project_id": context.get("project_id", "dummy_project_id"),
@@ -77,7 +79,7 @@ class MockLLMService:
                     "total_price": 1200000
                 }
             }
-        elif "analyze" in prompt.lower():
+        elif "analyze" in task or "analyze" in prompt.lower():
             return (
                 "感謝您提供報價單！我初步看了一下，有些細節想跟您請教。"
                 "請問您這次裝修的是新成屋還是中古屋呢？這會影響到基礎工程的評估喔。"

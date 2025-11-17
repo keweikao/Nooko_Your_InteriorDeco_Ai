@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
 from pydantic import BaseModel
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 import io
 import asyncio
 import json
@@ -13,16 +13,32 @@ logger = logging.getLogger(__name__)
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
+from src.agents.contractor_agent import ContractorAgent
+from src.agents.designer_agent import DesignerAgent
 from src.services.pdf_service import generate_pdf_report
 from src.services.llm_service import mock_llm_service
 from src.services.gemini_service import gemini_service
-from src.models.project import ConversationState, ConversationMessage, ExtractedSpecifications, ConversationStage
+from src.models.project import (
+    ConversationState,
+    ConversationMessage,
+    ExtractedSpecifications,
+    ConversationStage,
+    ProjectBrief,
+    Booking,
+)
+from src.services.conversation_service import ConversationService
+from src.services.spec_tracking import SpecTracker
+from src.services.database_service import db_service
 
 router = APIRouter()
 
 # Initialize agents
 client_manager = ClientManagerAgentV2()
 translator = ConstructionTranslator()
+conversation_service = ConversationService()
+spec_tracker = SpecTracker()
+contractor_agent = ContractorAgent()
+designer_agent = DesignerAgent()
 
 # Request/Response Models
 class CreateProjectResponse(BaseModel):
@@ -35,7 +51,7 @@ class StartConversationResponse(BaseModel):
     project_id: str
     current_question: Dict[str, Any]
     progress: Dict[str, Any]
-    agent_name: str = "Stephen" # Add agent_name
+    agent_name: str = "HouseIQ" # Add agent_name
 
 class AnswerRequest(BaseModel):
     question_id: str
@@ -46,7 +62,7 @@ class AnswerResponse(BaseModel):
     next_question: Optional[Dict[str, Any]]
     is_complete: bool
     message: Optional[str]
-    agent_name: str = "Stephen" # Add agent_name
+    agent_name: str = "HouseIQ" # Add agent_name
 
 class TranslateNeedRequest(BaseModel):
     consumer_need: str
@@ -69,43 +85,73 @@ class CompleteConversationResponse(BaseModel):
     briefing: Dict[str, Any]
     analysis: Dict[str, Any]
 
-# In-memory storage (will be replaced with Firestore)
-projects_db: Dict[str, Dict[str, Any]] = {}
-conversations_db: Dict[str, Dict[str, Any]] = {}
+class BookingRequest(BaseModel):
+    name: str
+    phone: str
+
+
 
 @router.post("/projects", response_model=CreateProjectResponse)
 async def create_project() -> CreateProjectResponse:
     """Create new project"""
     project_id = str(uuid.uuid4())
+    created_at = datetime.utcnow().isoformat()
 
-    projects_db[project_id] = {
-        "id": project_id,
-        "status": "created",
-        "created_at": datetime.utcnow().isoformat(),
-        "questionnaire_state": None,
-        "answers": {}
-    }
+    await conversation_service.create_project_in_db(project_id)
 
     return CreateProjectResponse(
         project_id=project_id,
         status="created",
-        created_at=projects_db[project_id]["created_at"],
+        created_at=created_at,
         welcome_message="歡迎來到 Nooko 裝潢 AI 夥伴！讓我們一起規劃您的理想空間。"
     )
 
 @router.get("/projects/{project_id}")
 async def get_project(project_id: str) -> Dict[str, Any]:
     """Get project details"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    return projects_db[project_id]
+    # Since project data is now in Firestore, we can return a simplified response
+    # or fetch the details from Firestore if needed.
+    return {"project_id": project_id, "status": "found_in_db"}
+
+@router.post("/projects/{project_id}/book")
+async def book_measurement(project_id: str, request: BookingRequest) -> Dict[str, Any]:
+    """
+    簡化預約 API：前端僅提交姓名與電話，後端將資料寫入 Firestore (db_service)。
+    Input: projectId + BookingRequest；Output: 成功訊息與保存的資料。
+    """
+    if not await conversation_service.project_exists(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    booking = Booking(project_id=project_id, name=request.name, contact=request.phone)
+    await db_service.save_booking(booking)
+
+    conversation = await conversation_service.get_project_conversation(project_id)
+    if conversation:
+        await conversation_service.log_event(
+            conversation["conversation_id"],
+            "booking_created",
+            description="User requested onsite measurement.",
+            payload={"name": request.name, "phone": request.phone}
+        )
+
+    return {
+        "status": "success",
+        "message": f"Booking confirmed for project {project_id}",
+        "booking": booking.model_dump()
+    }
 
 @router.post("/projects/{project_id}/conversation/start", response_model=StartConversationResponse)
 async def start_conversation(project_id: str) -> StartConversationResponse:
     """Start V2 questionnaire conversation"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # NOTE: The following logic is part of the old V1 questionnaire flow
+    # and still relies on an in-memory-like structure.
+    # This should be refactored if V1 is to be fully supported with Firestore.
 
     # Create new client manager for this project
     manager = ClientManagerAgentV2()
@@ -139,12 +185,13 @@ async def start_conversation(project_id: str) -> StartConversationResponse:
         "skip_suggestion": first_question.skip_suggestion
     }
 
-    projects_db[project_id]["questionnaire_state"] = {
-        "current_question_id": first_question.id,
-        "answered_questions": [],
-        "current_category": first_question.category,
-        "manager": manager  # Store manager instance
-    }
+    # This part is problematic as it tries to write to a non-existent in-memory db
+    # projects_db[project_id]["questionnaire_state"] = {
+    #     "current_question_id": first_question.id,
+    #     "answered_questions": [],
+    #     "current_category": first_question.category,
+    #     "manager": manager  # Store manager instance
+    # }
 
     progress = {
         "total_required": 10,  # Approximate
@@ -156,13 +203,13 @@ async def start_conversation(project_id: str) -> StartConversationResponse:
         project_id=project_id,
         current_question=first_question_dict,
         progress=progress,
-        agent_name="Stephen"
+        agent_name="HouseIQ"
     )
 
 @router.post("/projects/{project_id}/conversation/answer", response_model=AnswerResponse)
 async def submit_answer(project_id: str, answer_request: AnswerRequest) -> AnswerResponse:
     """Submit answer and get next question"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     project = projects_db[project_id]
@@ -221,7 +268,7 @@ async def submit_answer(project_id: str, answer_request: AnswerRequest) -> Answe
         next_question=next_question_dict,
         is_complete=is_complete,
         message="感謝您的回答！" if not is_complete else "問卷已完成，正在為您準備裝修建議...",
-        agent_name="Stephen"
+        agent_name="HouseIQ"
     )
 
 @router.post("/projects/{project_id}/translate-need")
@@ -230,7 +277,7 @@ async def translate_consumer_need(
     request: TranslateNeedRequest
 ) -> Dict[str, Any]:
     """Translate consumer need into construction plan"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Get construction plan
@@ -263,7 +310,7 @@ async def translate_consumer_need(
 @router.post("/projects/{project_id}/generate-spec")
 async def generate_construction_spec(project_id: str) -> Dict[str, Any]:
     """Generate full construction specification from questionnaire answers"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     project = projects_db[project_id]
@@ -306,7 +353,7 @@ class ReportRequest(BaseModel):
 @router.post("/projects/{project_id}/generate-pdf-report")
 async def generate_pdf_report_endpoint(project_id: str, request: ReportRequest):
     """Generate and return a PDF report."""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     pdf_bytes = generate_pdf_report(request.analysis_data)
@@ -321,39 +368,31 @@ async def generate_pdf_report_endpoint(project_id: str, request: ReportRequest):
 @router.post("/projects/{project_id}/conversation/init", response_model=InitConversationResponse)
 async def init_conversation(project_id: str) -> InitConversationResponse:
     """初始化真實對話 - Initialize real conversation with Agent1"""
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     # 創建新的對話會話
     conversation_id = f"conv-{uuid.uuid4()}"
+    await conversation_service.create_conversation(conversation_id, project_id)
+    await conversation_service.log_event(
+        conversation_id,
+        "conversation_initialized",
+        description="Conversation created via init endpoint."
+    )
+    # 初始化 Firestore 中的欄位追蹤狀態（供前端/LLM 使用）
+    await conversation_service.update_extracted_specs(conversation_id, spec_tracker.empty_state())
+    await conversation_service.update_missing_fields(conversation_id, spec_tracker.initial_missing_fields())
+    await conversation_service.update_conversation_stage(conversation_id, "greeting", 0)
 
-    conversations_db[conversation_id] = {
-        "id": conversation_id,
-        "project_id": project_id,
-        "messages": [],
-        "stage": "greeting",
-        "progress": 0,
-        "created_at": datetime.utcnow().isoformat(),
-        "answers": {},
-        "extracted_specs": {}  # Initialize extracted specifications
-    }
-
-    # Also use project_id as the conversation key for easier lookup
-    conversations_db[project_id] = conversations_db[conversation_id]
-
-    # Agent 信息 - Stephen (客戶經理)
+    # Agent 信息 - HouseIQ (客戶經理)
     agent = {
-        "name": "Stephen",
+        "name": "HouseIQ",
         "avatar": "👨‍💼",
         "status": "idle"
     }
 
     # 初始問候消息 - 繁體中文
-    initial_message = """您好！我是 Stephen，您的專業項目經理。
-
-我在這裡是為了深入了解您的室內設計願景，確保我們為您打造一個完美的空間。
-
-請問您主要想要裝修哪些區域呢？廚房、浴室、臥室，還是整個空間？"""
+    initial_message = """哈囉！很高興能為您服務。聽起來您想針對「整個空間」做些規劃，這真是個令人期待的大項目！能不能先請您稍微分享一下，您目前考慮的是全屋翻新，還是局部改造呢？這樣我比較能了解方向，也能更精準地提供建議喔！😊 """
 
     return InitConversationResponse(
         conversationId=conversation_id,
@@ -384,7 +423,7 @@ async def generate_agent_response(
         # Call Gemini service to generate a response with streaming
         context = {
             "conversation_id": conversation_id,
-            "role": "stephen",
+            "role": "houseiq",
             "extracted_specs": extracted_specs
         }
 
@@ -412,20 +451,44 @@ async def send_message_stream(
 ) -> StreamingResponse:
     """發送消息並通過 SSE 流式接收 Agent 回應 - Send message and receive streaming response"""
 
-    if project_id not in projects_db:
-        raise HTTPException(status_code=404, detail="Project not found")
+    conversation = await conversation_service.get_project_conversation(project_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found for this project")
+    
+    conversation_id = conversation["conversation_id"]
 
     async def event_generator():
         try:
             # Get conversation history and extracted specs from storage
-            conversation_history = conversations_db.get(project_id, {}).get("messages", [])
-            extracted_specs = conversations_db.get(project_id, {}).get("extracted_specs", {})
+            conversation_history = await conversation_service.get_conversation_history(conversation_id)
+            extracted_specs = await conversation_service.get_current_specs(conversation_id) or {}
+            # 根據現有欄位計算目前階段，以便在第一個 chunk 就傳回給前端
+            tracking_snapshot = spec_tracker.evaluate(extracted_specs)
+            current_stage = tracking_snapshot["stage"]
+            current_progress = tracking_snapshot["progress"]
+            current_missing_fields = tracking_snapshot["missing_fields"]
+
+            # Save user message
+            await conversation_service.save_message(conversation_id, "user", message)
+            await conversation_service.log_event(
+                conversation_id,
+                "user_message_received",
+                source="user",
+                description=message[:200],
+                payload={"length": len(message)}
+            )
 
             # 生成 Agent 回應 with Gemini integration
             response_text = ""
+            await conversation_service.log_event(
+                conversation_id,
+                "agent_stream_started",
+                source="agent",
+                payload={"model": getattr(gemini_service, "model_name", "unknown")}
+            )
             async for text_chunk, spec_update in generate_agent_response(
                 message=message,
-                conversation_id=project_id,
+                conversation_id=conversation_id,
                 conversation_history=conversation_history,
                 extracted_specs=extracted_specs
             ):
@@ -437,8 +500,9 @@ async def send_message_stream(
                         "chunk": text_chunk,
                         "isComplete": False,
                         "metadata": {
-                            "stage": "assessment",
-                            "progress": 50
+                            "stage": current_stage,
+                            "progress": current_progress,
+                            "missingFields": current_missing_fields[:3]
                         }
                     }
                     yield f"event: message_chunk\n"
@@ -446,39 +510,72 @@ async def send_message_stream(
 
                 # Handle spec updates
                 if spec_update:
-                    # Merge updated specs with existing ones
-                    if project_id in conversations_db:
-                        conversations_db[project_id]["extracted_specs"] = spec_update
-                    logger.info(f"Specs updated: {spec_update}")
+                    tracking_snapshot = spec_tracker.merge(extracted_specs, spec_update)
+                    extracted_specs = tracking_snapshot["state"]
+                    current_stage = tracking_snapshot["stage"]
+                    current_progress = tracking_snapshot["progress"]
+                    current_missing_fields = tracking_snapshot["missing_fields"]
+                    if tracking_snapshot["changed"]:
+                        await conversation_service.update_extracted_specs(conversation_id, extracted_specs)
+                    await conversation_service.update_missing_fields(conversation_id, current_missing_fields)
+                    await conversation_service.update_conversation_stage(
+                        conversation_id,
+                        current_stage,
+                        current_progress
+                    )
+                    logger.info(f"Specs updated: {list(spec_update.keys())}")
+                    await conversation_service.log_event(
+                        conversation_id,
+                        "spec_updated",
+                        source="agent",
+                        payload={"fields": list(spec_update.keys())}
+                    )
 
-            # Save the full response message to history
-            if project_id in conversations_db:
-                conversations_db[project_id]["messages"].append({
-                    "sender": "user",
-                    "content": message,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
-                conversations_db[project_id]["messages"].append({
-                    "sender": "agent",
-                    "content": response_text,
-                    "timestamp": datetime.utcnow().isoformat()
-                })
+            # Save the full agent response message to history
+            await conversation_service.save_message(conversation_id, "agent", response_text)
 
             # 發送完成事件
+            tracking_snapshot = spec_tracker.evaluate(extracted_specs)
+            current_stage = tracking_snapshot["stage"]
+            current_progress = tracking_snapshot["progress"]
+            current_missing_fields = tracking_snapshot["missing_fields"]
+            await conversation_service.update_missing_fields(conversation_id, current_missing_fields)
+            await conversation_service.update_conversation_stage(
+                conversation_id,
+                current_stage,
+                current_progress
+            )
+            final_specs = extracted_specs or {}
             complete_event = {
                 "chunk": "",
                 "isComplete": True,
                 "metadata": {
-                    "stage": "assessment",
-                    "progress": 50,
-                    "extracted_specs": conversations_db.get(project_id, {}).get("extracted_specs", {})
+                    "stage": current_stage,
+                    "progress": current_progress,
+                    "missingFields": current_missing_fields,
+                    "extracted_specs": final_specs or {}
                 }
             }
             yield f"event: message_chunk\n"
             yield f"data: {json.dumps(complete_event, ensure_ascii=False)}\n\n"
+            await conversation_service.log_event(
+                conversation_id,
+                "agent_stream_completed",
+                source="agent",
+                payload={
+                    "response_length": len(response_text),
+                    "specs_known": list((final_specs or {}).keys())
+                }
+            )
 
         except Exception as e:
             logger.error(f"Error in stream: {e}")
+            await conversation_service.log_event(
+                conversation_id,
+                "agent_stream_error",
+                severity="error",
+                description=str(e)
+            )
             error_event = {
                 "error": str(e),
                 "isComplete": True
@@ -501,65 +598,256 @@ async def send_message_stream(
 async def complete_conversation(project_id: str) -> CompleteConversationResponse:
     """完成對話並返回總結 - Complete conversation and return summary"""
 
-    if project_id not in projects_db:
+    if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # 獲取或創建 Manager
-    project = projects_db[project_id]
-    manager = project["questionnaire_state"].get("manager")
-    if not manager:
-        manager = ClientManagerAgentV2()
+    conversation = await conversation_service.get_project_conversation(project_id)
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found for this project")
 
-    # 生成總結
-    summary = """基於我們的對話，我已經了解了您的需求。以下是我的專業建議：
+    conversation_id = conversation["conversation_id"]
+    specs = await conversation_service.get_current_specs(conversation_id) or {}
+    evaluation = spec_tracker.evaluate(specs)
+    missing_fields = evaluation["missing_fields"]
 
-1. **空間規劃**：根據您提到的區域，我建議優先處理濕區防水。
-2. **材料選擇**：在您的預算範圍內，我推薦性價比最高的材料組合。
-3. **施工順序**：建議先完成隱蔽工程，再進行裝飾工程。
-4. **時間安排**：預計整個項目需要 3-4 週完成。
+    if missing_fields:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "對話尚未完成，仍有關鍵資訊缺失。",
+                "missing_fields": missing_fields
+            }
+        )
 
-接下來，我會為您生成詳細的設計方案和規格書。"""
+    # 將收集到的欄位整理成 ProjectBrief，並同步保存對話摘要
+    briefing_model = _build_project_brief(project_id, specs)
+    summary = _build_summary_from_brief(briefing_model)
+    analysis = _build_analysis_from_brief(briefing_model)
 
-    # 創建簡報數據
-    briefing = {
-        "project_id": project_id,
-        "user_profile": {
-            "communication_style": "professional",
-            "budget_conscious": True,
-            "timeline_important": True
-        },
-        "style_preferences": ["modern", "practical"],
-        "key_requirements": [
-            "防水處理",
-            "安全電氣",
-            "通風系統",
-            "材料質量"
-        ],
-        "completed_at": datetime.utcnow().isoformat()
-    }
+    await db_service.update_project(
+        project_id,
+        {
+            "project_brief": briefing_model.model_dump(),
+            "conversation_summary": summary
+        }
+    )
 
-    # 分析結果
-    analysis = {
-        "summary": summary,
-        "key_insights": [
-            "用戶對質量有高要求",
-            "預算有限制，需要合理分配",
-            "多個區域需要關注防水"
-        ],
-        "recommendations": [
-            "優先安排隱蔽工程檢查",
-            "選擇高品質防水材料",
-            "建議分階段施工以控制成本"
-        ],
-        "next_steps": [
-            "生成詳細設計圖",
-            "準備完整規格書",
-            "安排現場丈量"
-        ]
-    }
+    # 多 Agent 協作
+    await conversation_service.log_event(
+        conversation_id,
+        "handoff_started",
+        description="Dispatching project brief to contractor/designer agents."
+    )
+
+    # 呼叫其他 Agent 產出報價與渲染圖（皆為 async）
+    contractor_quote = await contractor_agent.run(briefing_model)
+    designer_output = await designer_agent.run(briefing_model)
+
+    await db_service.update_project_with_quote(project_id, contractor_quote)
+    await db_service.update_project_with_rendering(
+        project_id,
+        designer_output.get("image_url", "")
+    )
+
+    analysis["quote"] = contractor_quote.model_dump()
+    analysis["rendering_url"] = designer_output.get("image_url")
+
+    await conversation_service.log_event(
+        conversation_id,
+        "conversation_completed",
+        description="Conversation marked as complete and briefing generated."
+    )
 
     return CompleteConversationResponse(
         summary=summary,
-        briefing=briefing,
+        briefing=briefing_model.model_dump(),
         analysis=analysis
     )
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse ISO 8601 string to datetime with timezone awareness."""
+    if not value:
+        return None
+    try:
+        normalized = value.strip()
+        if normalized.endswith("Z"):
+            normalized = normalized.replace("Z", "+00:00")
+        dt = datetime.fromisoformat(normalized)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid 'since' timestamp. Use ISO 8601 format.")
+
+
+@router.get("/projects/{project_id}/conversation/{conversation_id}/events")
+async def get_conversation_events(
+    project_id: str,
+    conversation_id: str,
+    limit: int = 50,
+    severity: Optional[str] = None,
+    since: Optional[str] = None
+) -> Dict[str, Any]:
+    """取得指定對話的事件日誌"""
+    if not await conversation_service.project_exists(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    conversation = await conversation_service.get_conversation(conversation_id)
+    if not conversation or conversation.get("project_id") != project_id:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    since_dt = _parse_iso_datetime(since)
+    events = await conversation_service.get_events(
+        conversation_id,
+        limit=min(max(limit, 1), 200),
+        severity=severity,
+        since=since_dt
+    )
+
+    serialized_events = []
+    for event in events:
+        timestamp = event.get("timestamp")
+        if isinstance(timestamp, datetime):
+            ts = timestamp.astimezone(timezone.utc).isoformat()
+        else:
+            ts = None
+        serialized_events.append({
+            "id": event.get("id"),
+            "type": event.get("type"),
+            "severity": event.get("severity"),
+            "source": event.get("source"),
+            "description": event.get("description"),
+            "payload": event.get("payload"),
+            "timestamp": ts
+        })
+
+    return {
+        "conversationId": conversation_id,
+        "projectId": project_id,
+        "events": serialized_events
+    }
+
+
+def _spec_value(specs: Dict[str, Any], field_id: str, default=None):
+    entry = specs.get(field_id)
+    if isinstance(entry, dict):
+        return entry.get("value", default)
+    return entry or default
+
+def _ensure_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v) for v in value if v not in (None, "")]
+    return [str(value)]
+
+
+def _build_project_brief(project_id: str, specs: Dict[str, Any]) -> ProjectBrief:
+    style_pref = _ensure_list(_spec_value(specs, "style_preference"))
+    if not style_pref:
+        style_pref = ["待定風格"]
+    key_requirements = (
+        _ensure_list(_spec_value(specs, "focus_areas"))
+        + _ensure_list(_spec_value(specs, "special_requirements"))
+        + _ensure_list(_spec_value(specs, "risk_flags"))
+    )
+    if not key_requirements:
+        key_requirements = ["持續補充需求資訊"]
+
+    user_profile = {
+        "name": _spec_value(specs, "user_name"),
+        "house_type": _spec_value(specs, "project_type"),
+        "space_usage": _spec_value(specs, "space_usage"),
+        "family_profile": _spec_value(specs, "family_profile"),
+        "house_condition": _spec_value(specs, "house_condition"),
+        "focus_areas": _ensure_list(_spec_value(specs, "focus_areas")),
+        "total_area": _spec_value(specs, "total_area"),
+        "budget": _spec_value(specs, "budget_range"),
+        "timeline": _spec_value(specs, "timeline"),
+    }
+
+    brief = ProjectBrief(
+        project_id=project_id,
+        user_profile=user_profile,
+        style_preferences=style_pref,
+        key_requirements=key_requirements,
+        original_quote_analysis={}
+    )
+    return brief
+
+
+def _build_summary_from_brief(brief: ProjectBrief) -> str:
+    profile = brief.user_profile or {}
+    name = profile.get("name") or "客戶"
+    scope = profile.get("house_type") or "裝修專案"
+    areas = profile.get("focus_areas") or ["多個區域"]
+    budget = profile.get("budget") or "尚未確認"
+    style_pref = ", ".join(brief.style_preferences) if brief.style_preferences else "待定風格"
+
+    return (
+        f"{name}，感謝您提供的資訊。我已整理出此次 {scope} 的重點：\n"
+        f"- 主要施作區域：{', '.join(areas)}\n"
+        f"- 預算範圍：{budget}\n"
+        f"- 偏好風格：{style_pref}\n\n"
+        "接下來我會把這份需求交給統包與設計師團隊，產出完整報價與概念渲染圖。"
+    )
+
+
+def _build_analysis_from_brief(brief: ProjectBrief) -> Dict[str, Any]:
+    profile = brief.user_profile or {}
+    key_requirements = brief.key_requirements or []
+
+    key_insights = []
+    if profile.get("timeline"):
+        key_insights.append("對時程有明確期待，需要妥善控管工期。")
+    if any("風險" in req for req in key_requirements):
+        key_insights.append("偵測到潛在風險，需要在施工前評估。")
+    if brief.style_preferences:
+        key_insights.append(f"風格主軸為 {', '.join(brief.style_preferences)}，需統一材質與色系。")
+
+    recommendations = [
+        "完成統包與設計師的產出後，與客戶再次複盤重點需求。",
+        "安排現場丈量，以確認坪數與現況細節。"
+    ]
+
+    next_steps = [
+        "整合統包報價與設計渲染圖",
+        "輸出可分享的專案簡報",
+        "啟動丈量與後續溝通"
+    ]
+
+    return {
+        "summary": "依據目前資訊已完成專案簡報雛型，可進入統包與設計師協作階段。",
+        "key_insights": key_insights,
+        "recommendations": recommendations,
+        "next_steps": next_steps
+    }
+
+
+@router.get("/projects/{project_id}/analysis-result")
+async def get_analysis_result(project_id: str) -> Dict[str, Any]:
+    """
+    整合前端成果頁需要的資料來源。
+    Input: projectId。
+    Output: quote/rendering_url/summary，資料來自 db_service（Firestore 或 mock）。
+    """
+    if not await conversation_service.project_exists(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    project_record = await db_service.get_project(project_id)
+    if not project_record:
+        raise HTTPException(status_code=404, detail="Result not found")
+
+    quote = project_record.get("generated_quote")
+    rendering_url = project_record.get("final_rendering_url")
+    summary = project_record.get("conversation_summary")
+
+    if not any([quote, rendering_url, summary]):
+        raise HTTPException(status_code=404, detail="Analysis result not available yet")
+
+    return {
+        "project_id": project_id,
+        "quote": quote,
+        "rendering_url": rendering_url,
+        "summary": summary
+    }
