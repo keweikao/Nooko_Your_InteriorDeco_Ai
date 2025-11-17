@@ -22,6 +22,8 @@ function MessageInput({ onSend, disabled = false, isLoading = false }) {
   }, [input]);
 
   const handleKeyDown = (e) => {
+    // IME 輸入時 (e.isComposing) 不要攔截 Enter，避免中文還未選字就送出
+    if (e.isComposing) return;
     // Shift+Enter: 換行，Enter: 發送
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

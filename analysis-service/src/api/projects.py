@@ -392,7 +392,7 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
     }
 
     # 初始問候消息 - 繁體中文
-    initial_message = """哈囉！很高興能為您服務。聽起來您想針對「整個空間」做些規劃，這真是個令人期待的大項目！能不能先請您稍微分享一下，您目前考慮的是全屋翻新，還是局部改造呢？這樣我比較能了解方向，也能更精準地提供建議喔！😊 """
+    initial_message = """哈囉！我是 HouseIQ，很高興協助您規劃空間。可以先跟我分享這次想改善哪些區域或期待的重點嗎？我會一步步了解您的想法，並告知哪些資訊還需要補充。"""
 
     return InitConversationResponse(
         conversationId=conversation_id,
