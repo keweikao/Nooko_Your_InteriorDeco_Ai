@@ -3,10 +3,9 @@ import '../ConversationUI.css';
 
 /**
  * 消息輸入框組件
- * 支持：
- * - 自動擴展文本框高度
- * - Shift+Enter 換行，Enter 發送
- * - 發送禁用狀態
+ * Input source: 使用者輸入文字
+ * Output: 呼叫 onSend(message)，由 Conversation UI 將文字送往後端 SSE
+ * Behavior: 自動調整高度、支援 IME（Enter 只確認文字，不送出）、Shift+Enter 換行
  */
 function MessageInput({ onSend, disabled = false, isLoading = false }) {
   const [input, setInput] = useState('');
@@ -22,9 +21,9 @@ function MessageInput({ onSend, disabled = false, isLoading = false }) {
   }, [input]);
 
   const handleKeyDown = (e) => {
-    // IME 輸入時 (e.isComposing) 不要攔截 Enter，避免中文還未選字就送出
+    // IME 輸入中 (e.isComposing) 時，Enter 只用於確認選字，不做送出
     if (e.isComposing) return;
-    // Shift+Enter: 換行，Enter: 發送
+    // Shift+Enter: 換行；單獨 Enter：送出訊息
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();

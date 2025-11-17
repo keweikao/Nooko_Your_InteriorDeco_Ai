@@ -1262,6 +1262,11 @@ ConversationService.update_extracted_specs() → Firestore 存儲
 - `web-service/src/components/BookingForm.jsx`: 表單縮減為姓名與電話，搭配新的 CTA 流程。
 - 新增 `/api/projects/{project_id}/book` 預約 API 並串接前端 BookingForm，資料直接寫入 Firestore（`db_service.save_booking`）。
 - 規劃 POC：DesignerAgent 將改用 Vertex AI 影像模型生成概念渲染圖（輸入 ProjectBrief、輸出 GCS URL），後續與現有 mock 併行以確保流程不中斷。
+- 2025-11-18 更新：對話部署完成後，再次微調 LLM 語氣與輸入框行為。
+    - LLM 以「15 年經驗設計顧問」角色，一次詢問一個重點、自然提示資訊已收集完成，不再顯示前端待補欄位。
+    - `MessageInput` 支援中文 IME（Enter 不會誤送），送出後確實清空。
+    - 新增 `/api/projects/{project_id}/upload` API，允許 PDF/Excel/圖片報價單上傳，儲存 metadata 以便後續解析。
+    - BookingForm、FileUpload 均已串接對應 API 並能處理成功/錯誤提示。
 
 ### 下一步
 1. 系統性閱讀與 Agent 1 相關的 specs 與規劃文件。
