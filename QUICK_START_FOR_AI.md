@@ -60,14 +60,21 @@
     - **目標**: 為了節省您的 Token 消耗和成本。
     - **實踐**: 在讀取檔案 (`read_file`) 前，優先使用更經濟的工具（如 `grep`, `search_file_content`, `ls`）來縮小範圍、確認檔案是否存在或定位關鍵程式碼。避免不必要的全檔案讀取。
 
-2.  **✍️ 即時記錄日誌 (Log as You Go)**
+2.  **✍️ 程式碼註解 (Code Commenting)**
+    - **目標**: 提升程式碼的可讀性與可維護性。
+    - **實踐**: 對於所有主要的函式或類別，必須在定義上方加入註解塊。註解應包含：
+        - **目的 (Purpose)**：簡述該函式/類別的核心職責。
+        - **輸入 (Input)**：說明重要的參數及其來源。
+        - **輸出 (Output)**：說明回傳值的內容和目的地。
+
+3.  **✍️ 即時記錄日誌 (Log as You Go)**
     - 每完成一個**主要動作** (例如：成功修改一個檔案、從一次探索中獲得結論)，就**必須**立即在 `DEVELOPMENT_LOG.md` 中記錄進度。
     - **禁止**等到整個任務結束後才一次性補寫日誌。
 
-3.  **🗣️ 統一語言 (Unified Language)**
+4.  **🗣️ 統一語言 (Unified Language)**
     - 所有對使用者的回覆、註解和日誌記錄，一律使用**繁體中文**。
 
-4.  **🚀 標準化提交與部署 (Standardized Commit & Deployment)**
+5.  **🚀 標準化提交與部署 (Standardized Commit & Deployment)**
     - **流程**: `git add` ➜ `git commit` ➜ `git push` ➜ `gcloud builds submit`。
     - **提交訊息**: 遵循 Conventional Commits 規範 (例如 `feat:`, `fix:`, `docs:`)，清晰描述變更。
     - **部署指令**: `gcloud builds submit . --config cloudbuild.yaml --project=nooko-yourinteriordeco-ai`。
