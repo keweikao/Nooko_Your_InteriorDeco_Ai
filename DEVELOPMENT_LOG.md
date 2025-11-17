@@ -1261,6 +1261,7 @@ ConversationService.update_extracted_specs() → Firestore 存儲
 - `web-service/src/components/FinalResult.jsx`: 連線新 `/analysis-result` 端點，顯示渲染圖與報價，CTA 維持預約/下載。
 - `web-service/src/components/BookingForm.jsx`: 表單縮減為姓名與電話，搭配新的 CTA 流程。
 - 新增 `/api/projects/{project_id}/book` 預約 API 並串接前端 BookingForm，資料直接寫入 Firestore（`db_service.save_booking`）。
+- 規劃 POC：DesignerAgent 將改用 Vertex AI 影像模型生成概念渲染圖（輸入 ProjectBrief、輸出 GCS URL），後續與現有 mock 併行以確保流程不中斷。
 
 ### 下一步
 1. 系統性閱讀與 Agent 1 相關的 specs 與規劃文件。

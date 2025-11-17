@@ -38,24 +38,21 @@ async def test_get_project(client: AsyncClient):
     assert data["project_id"] == project_id
     assert "status" in data
 
-@pytest.mark.skip(reason="Legacy upload endpoint not implemented in current API")
-async def test_upload_quote(client: AsyncClient):
-    """Test the file upload endpoint."""
+async def test_upload_quote(client: AsyncClient, patch_conversation_service):
+    """檔案上傳 API：確認接受 PDF 並回傳 metadata。"""
     project_id = "test_project_456"
-    # Create a dummy file in memory
+    patch_conversation_service.created_projects.add(project_id)
     dummy_file_content = b"This is a test pdf content."
-    dummy_file = io.BytesIO(dummy_file_content)
-    
+
     response = await client.post(
         f"/api/projects/{project_id}/upload",
-        files={"file": ("test_quote.pdf", dummy_file, "application/pdf")}
+        files={"file": ("test_quote.pdf", dummy_file_content, "application/pdf")}
     )
-    
+
     assert response.status_code == 200
     data = response.json()
-    assert data["project_id"] == project_id
-    assert data["filename"] == "test_quote.pdf"
-    assert "File uploaded successfully" in data["message"]
+    assert data["metadata"]["filename"] == "test_quote.pdf"
+    assert data["metadata"]["content_type"] == "application/pdf"
 
 async def test_book_measurement(client: AsyncClient, patch_conversation_service):
     """Test the booking endpoint (name + phone)."""

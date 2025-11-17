@@ -1,13 +1,15 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from typing import Dict, Any, List, Optional, AsyncGenerator, Tuple
 from pydantic import BaseModel
+import os
 import uuid
 from datetime import datetime, timezone
 import io
 import asyncio
 import json
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,8 @@ spec_tracker = SpecTracker()
 contractor_agent = ContractorAgent()
 designer_agent = DesignerAgent()
 
+UPLOAD_ROOT = Path(os.getenv("QUOTE_UPLOAD_DIR", "./uploaded_quotes"))
+UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
 # Request/Response Models
 class CreateProjectResponse(BaseModel):
     project_id: str
@@ -142,6 +146,56 @@ async def book_measurement(project_id: str, request: BookingRequest) -> Dict[str
         "message": f"Booking confirmed for project {project_id}",
         "booking": booking.model_dump()
     }
+
+
+@router.post("/projects/{project_id}/upload")
+async def upload_quote(project_id: str, file: UploadFile = File(...)) -> Dict[str, Any]:
+    """
+    接收使用者上傳的報價單（PDF/Excel/圖片）並暫存於檔案系統。
+    Input: FormData file, project_id
+    Output: 儲存後的 metadata，供後續解析流程使用。
+    """
+    if not await conversation_service.project_exists(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if file.content_type not in {
+        "application/pdf",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "image/jpeg",
+        "image/png",
+    }:
+        raise HTTPException(status_code=400, detail="不支援的檔案格式")
+
+    project_dir = UPLOAD_ROOT / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = file.filename or "upload"
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    save_path = project_dir / f"{timestamp}_{safe_name}"
+
+    contents = await file.read()
+    save_path.write_bytes(contents)
+
+    metadata = {
+        "filename": safe_name,
+        "stored_path": str(save_path),
+        "content_type": file.content_type,
+        "size_bytes": len(contents),
+        "uploaded_at": datetime.utcnow().isoformat()
+    }
+
+    await db_service.update_project(project_id, {"uploaded_quote": metadata})
+
+    conversation = await conversation_service.get_project_conversation(project_id)
+    if conversation:
+        await conversation_service.log_event(
+            conversation["conversation_id"],
+            "quote_uploaded",
+            description=f"User uploaded file {safe_name}",
+            payload={"content_type": file.content_type, "size": len(contents)}
+        )
+
+    return {"message": "檔案上傳成功", "metadata": metadata}
 
 @router.post("/projects/{project_id}/conversation/start", response_model=StartConversationResponse)
 async def start_conversation(project_id: str) -> StartConversationResponse:
