@@ -211,7 +211,7 @@ class GeminiLLMService:
 
             # Build message list with conversation history
             messages = [{"role": "user", "parts": [system_prompt]}]
-            for msg in conversation_history[-10:]:  # Keep last 10 messages for context
+            for msg in conversation_history:  # Use full conversation history
                 messages.append({
                     "role": "user" if msg.get("sender") == "user" else "model",
                     "parts": [msg.get("content", "")]
@@ -227,7 +227,7 @@ class GeminiLLMService:
 
             # Build conversation content string
             conversation_text = system_prompt + "\n\n"
-            for msg in conversation_history[-10:]:
+            for msg in conversation_history:
                 role = "User" if msg.get("sender") == "user" else "Assistant"
                 conversation_text += f"{role}: {msg.get('content', '')}\n\n"
             conversation_text += f"User: {message}\n\nAssistant:"
