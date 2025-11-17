@@ -59,7 +59,7 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
     formData.append('file', selectedFile);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/upload`, {
+      const response = await fetch(`${apiBaseUrl}/api/projects/${projectId}/upload`, {
         method: 'POST',
         body: formData,
       });
