@@ -1,131 +1,84 @@
-# Feature Specification: 裝潢 AI 夥伴 (Interior Decoration AI Partner)
+# Feature Specification: AI 裝潢顧問 (AI Decor Advisor)
 
-**Feature Branch**: `002-interior-deco-ai`
-**Created**: 2025-11-14
+**Feature Branch**: `003-ai-decor-advisor`
+**Created**: 2025-11-17
 **Status**: Draft
-**Input**: User description: "專案名稱：裝潢 AI 夥伴、主要目標或解決的問題：在消費者要裝潢的時候面臨資訊不對稱的 Gap 也沒有詳細的資料可以閱讀，但需要投入大量的資金，我們為了提高我們裝修的客戶，要提供一個 AI Agent 只要消費者提供目前掌握的報價單，並透過詢問裝修需求問題，就可以提供詳細的報價單規格，讓消費者知道有哪些項目沒包含，建立資訊透明度，最後提出是否想要與我們合作的設計師或統包商切洽，目前提供免費丈量且我們是以提供的報價規格為基礎跟您丈量..."
+**Input**: User discussion on refining the product vision.
 
 ## User Scenarios & Testing *(mandatory)*
 
-### User Story 1 - 上傳報價單 (Priority: P1)
+### User Story 1: 報價單健全度分析 (Quote Sanity Check) - (Priority: P1)
 
-作為一位首次裝修的屋主，我想要上傳我現有的報價單（PDF 或 Excel 檔案），以便「客戶經理 Agent」能夠為我啟動分析流程。
+**As a** homeowner who is unsure if my quote is correct,
+**I want to** upload my quote and have a consultation with an AI advisor,
+**so that I can** get a professional judgment on whether my quote is "passing grade" (i.e., complete, reasonable, and without obvious traps).
 
-**Why this priority**: 這是整個服務的入口，所有後續互動都基於此。
-
-**Independent Test**: 上傳一個標準 PDF 報價單，驗證系統成功接收並觸發 Agent 1 的歡迎訊息。
-
-**Acceptance Scenarios**:
-
-1.  **Given** 使用者來到服務首頁, **When** 使用者上傳一個 PDF 檔案, **Then** 系統應成功接收，並由「客戶經理 Agent」返回「您好，我是您的專屬客戶經理，我正在為您分析報價單，請稍候...」的訊息。
-
----
-
-### User Story 2 - 互動式需求探索 (Priority: P1)
-
-我希望能與「客戶經理 Agent」進行一場有同理心的對話。它會根據我的報價單和房屋類型，透過提問和即時生成「風格參考圖」的方式，深入了解我的真實需求、預算和個人風格偏好。
-
-**Why this priority**: 這是發掘潛在需求、建立信任的關鍵。互動式圖片能確保風格溝通的準確性。
-
-**Independent Test**: 輸入一份中古屋報價單，驗證「客戶經理 Agent」是否能詢問有關基礎工程的問題，並在討論風格時生成至少一張參考圖。
+**Why this priority**: This is the entry point of the entire service and the primary hook to attract users.
 
 **Acceptance Scenarios**:
 
-1.  **Given** 「客戶經理 Agent」正在與使用者對話, **When** 使用者提到「喜歡北歐風」, **Then** Agent 應生成 2-3 張北歐風格的參考圖，並提問「您是指偏向 A 圖的簡約感，還是 B 圖的溫暖木質感覺呢？」。
-2.  **Given** 所有需求討論完畢, **When** 使用者確認, **Then** 「客戶經理 Agent」應告知使用者「好的，我已經將您的完整需求整理成一份專案簡報，現在就交給我們的專業統包商和設計師，請您稍候片刻」。
+1.  **Given** a user lands on the service page, **When** they upload a supported file (PDF, Excel, Image), **Then** the system should accept the file and the AI should initiate a conversation with a welcoming and analytical tone.
+2.  **Given** the AI has finished its analysis and conversation, **When** it presents the final report, **Then** the report must contain a section dedicated to the analysis of the original quote, highlighting potential missing items, unclear specifications, or potential risks.
 
 ---
 
-### User Story 3 - 後台專家協作 (Priority: P2)
+### User Story 2: 引導式顧問對話 (Guided Consultative Conversation) - (Priority: P1)
 
-在「客戶經理 Agent」收集完所有資訊後，系統應自動將生成的「專案簡報」分派給「專業統包商 Agent」和「設計師 Agent」，讓他們並行工作。
+**As a** user who is not a renovation expert,
+**I am worried** that I can't accurately describe what the AI needs to know,
+**so I expect** the AI to proactively guide me with visual examples and simple explanations, much like a real designer would.
 
-**Why this priority**: 這是實現多 Agent 協作的核心機制，體現了系統的效率。
-
-**Independent Test**: 在 User Story 2 完成後，驗證系統後台是否成功觸發了 Agent 2 和 Agent 3，並將包含使用者需求的「專案簡報」作為輸入。
+**Why this priority**: This is the key to building trust and ensuring high-quality information gathering. It directly addresses a core user anxiety.
 
 **Acceptance Scenarios**:
 
-1.  **Given** 「客戶經理 Agent」已完成需求探索, **When** 它觸發後台任務, **Then** 「專業統包商 Agent」和「設計師 Agent」應在 5 秒內被啟動。
+1.  **Given** the conversation is about room style, **When** the user mentions a style like "Nordic" or "minimalist", **Then** the AI should respond with 2-3 concept images and ask clarifying questions, e.g., "Do you prefer the simplicity of image A, or the warm wood tones of image B?".
+2.  **Given** the AI asks about a technical item (e.g., "waterproofing"), **When** the user seems confused, **Then** the AI should provide a simple, one-sentence explanation, e.g., "This is a crucial step in bathrooms and kitchens to prevent leaks in the future."
 
 ---
 
-### User Story 4 - 交付專業成果 (Priority: P2)
+### User Story 3: 從分析到解決方案 (From Analysis to Solution) - (Priority: P1)
 
-我希望「專業統包商 Agent」能根據簡報產出詳細的規格報價單與風險評估，而「設計師 Agent」能產出最終的概念渲染圖。
+**As a** homeowner who has received the AI's analysis,
+**I feel** anxious about confronting my current contractor and unsure how to implement the suggestions,
+**so I want** the AI to offer me a clear, seamless path to a trusted provider who can execute the project based on the new, improved specification.
 
-**Why this priority**: 這是系統核心價值的體現，將使用者的模糊需求轉化為專業、具體的交付物。
-
-**Independent Test**: 提供一份固定的「專案簡報」，驗證 Agent 2 是否能生成包含缺失項目的報價單，以及 Agent 3 是否能生成符合簡報描述的渲染圖。
+**Why this priority**: This closes the business loop and transforms the tool from a simple "checker" into a "solution provider", directly leading to business opportunities.
 
 **Acceptance Scenarios**:
 
-1.  **Given** 「專業統包商 Agent」收到簡報, **When** 它完成工作, **Then** 應生成一份包含工程項目、規格、材料、價格和潛在風險的結構化文件。
-2.  **Given** 「設計師 Agent」收到簡報, **When** 它完成工作, **Then** 應生成一張 1024x1024 像素的 JPG 格式渲染圖。
+1.  **Given** the AI has presented the final analysis package (spec sheet, render, etc.), **When** it concludes its summary, **Then** it must present a clear Call to Action, seamlessly transitioning from advisor to partner, e.g., "Now that we have this professional blueprint, our expert construction team is ready to help you bring it to life. Would you like us to provide a quote based on this exact specification?".
+2.  **Given** the user clicks the "Invite our team" CTA, **Then** they should be taken to a simple contact/booking form to schedule a follow-up.
 
 ---
-
-### User Story 5 - 成果彙報與解說 (Priority: P1)
-
-當報價單和渲染圖都完成後，我希望能由最初的「客戶經理 Agent」向我呈報這兩份文件，並用易於理解的方式為我解說。
-
-**Why this priority**: 保持單一窗口的服務體驗，讓使用者感覺流暢、一致。由客戶經理來解說，能將專業的內容轉化得更親切。
-
-**Independent Test**: 在 Agent 2 和 3 完成工作後，驗證 Agent 1 是否能正確地展示報價單和渲染圖，並提供至少一段總結性的解說。
-
-**Acceptance Scenarios**:
-
-1.  **Given** Agent 1 已收到 Agent 2 和 3 的產出, **When** 它再次與使用者對話, **Then** 應同時展示報價單和渲染圖，並說「您好，久等了！這是我們的專家團隊為您準備的詳細規格報價單和未來樣貌的參考圖」。
-
----
-
-### User Story 6 - 導流至線下服務 (Priority: P3)
-
-在拿到所有專業文件後，我希望能有一個清晰的選項，讓我預約平台的合作夥伴進行免費的現場丈量。
-
-**Why this priority**: 實現商業閉環，將線上諮詢轉化為線下業務。
-
-**Independent Test**: 在成果展示頁面，驗證「預約免費丈量」按鈕是否存在且可點擊。
-
-**Acceptance Scenarios**:
-
-1.  **Given** 使用者正在查看最終成果頁面, **When** 點擊「預約免費丈量」, **Then** 應跳轉至一個預約表單頁面。
-
----
-
-### Edge Cases
-
-- **當使用者上傳加密或損毀的 PDF/Excel 檔案時會發生什麼？** 系統應能偵測到檔案無法讀取，並提示使用者更換檔案。
-- **當使用者在對話中提供模糊或矛盾的需求時，系統如何處理？** AI 應能識別不明確的指令，並以提問的方式引導使用者提供更具體的資訊，例如「您提到的『質感好一點的木地板』，是指實木、海島型還是超耐磨木地板呢？」
-- **當報價單格式極度不標準或為手寫掃描檔時，系統如何處理？** 系統應告知使用者 AI 無法完全解析，並引導使用者手動輸入幾個關鍵項目，或直接進入通用需求訪談流程。
 
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
 
-- **FR-001**: 系統必須實現一個包含三位虛擬專家（客戶經理、專業統包商、設計師）的多 Agent 架構。
-- **FR-002**: **客戶經理 Agent** 必須作為唯一對客窗口，負責所有與使用者的直接互動。
-- **FR-003**: **客戶經理 Agent** 必須具備在對話中調用圖片生成模型，以產生風格參考圖的能力。
-- **FR-004**: 系統必須能夠讓 Agent 之間透過一份標準化的「專案簡報」來傳遞資訊。
-- **FR-005**: **專業統包商 Agent** 必須能根據簡報，生成包含項目、規格、價格及風險提示的詳細報價單。
-- **FR-006**: **設計師 Agent** 必須能根據簡報，生成一張高畫質的概念渲染圖。
-- **FR-007**: 系統必須允許使用者上傳 PDF 和 Excel 格式的檔案，並能解析其內容。
-- **FR-008**: 在流程結束時，系統必須向使用者提供一個預約線下丈量服務的行動呼籲 (Call to Action)。
-- **FR-009**: 系統必須使用如 Firestore 之類的資料庫，來儲存使用者會話、各 Agent 的產出以及最終的專案資料。
+- **FR-001**: The system must allow users to upload files in PDF, Excel, and common image formats (JPG, PNG).
+- **FR-002**: The system must use a single, core LLM to manage the entire user conversation, simulating different expert personas (advisor, designer, contractor) as needed.
+- **FR-003**: The AI must be able to call an image generation service to create and display concept images within the conversation.
+- **FR-004**: The final output must be a "Solution Package" containing:
+    - A standardized, detailed **Project Specification Sheet** (prices optional).
+    - A **Concept Rendering** based on the user's preferences.
+    - (If budget is provided) A **Budget Trade-off Suggestion** list (must-haves vs. nice-to-haves).
+- **FR-005**: The final output must prominently feature a Call to Action that invites the user to engage the company's own construction services.
+- **FR-006**: The system must store conversation history and generated artifacts in a persistent database (e.g., Firestore).
 
 ### Key Entities
 
-- **使用者 (User)**: 尋求裝潢建議的消費者，擁有會話 ID。
-- **原始報價單 (OriginalQuote)**: 使用者上傳的 PDF/Excel 檔案，包含一組項目列表。
-- **項目 (LineItem)**: 報價單中的單一條目，包含描述、數量、單位、價格等屬性。
-- **標準規格書 (StandardSpec)**: AI 生成的詳細規格文件，由多個標準化的項目組成。
-- **互動記錄 (Interaction)**: 使用者與 AI Agent 之間的對話歷史。
+- **User**: The homeowner seeking advice.
+- **Project**: A unique session for a user, identified by a project ID.
+- **OriginalQuote**: The file uploaded by the user.
+- **Conversation**: The series of messages between the user and the AI.
+- **ProjectSpecification**: The standardized spec sheet generated by the AI.
+- **ConceptAsset**: Any asset generated during the conversation (e.g., concept images, final rendering).
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: 對於市場上常見格式的報價單，系統的自動解析成功率達到 90% 以上。
-- **SC-002**: 在一系列包含已知缺失項目的測試案例中，AI Agent 能夠成功識別並建議至少 80% 的關鍵缺失項目。
-- **SC-003**: 在服務完成後的使用者回饋調查中，關於「規格書的清晰度與實用性」的評分，平均達到 4/5 分或更高。
-- **SC-004**: 完成完整 AI 互動流程的使用者中，有至少 15% 的人點擊「預約免費丈量」按鈕。
+- **SC-001**: For common quote formats, the AI can identify and flag at least 80% of critical missing items (e.g., waterproofing in a bathroom renovation).
+- **SC-002**: In user feedback, the "Guided Conversation" feature (with images/examples) receives an average satisfaction score of 4/5 or higher.
+- **SC-003**: At least 20% of users who complete the entire AI flow click the final "Invite our team" Call to Action.

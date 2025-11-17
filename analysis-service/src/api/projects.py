@@ -11,7 +11,17 @@ import json
 import logging
 from pathlib import Path
 
+from google.cloud import storage
+from google.cloud import pubsub_v1
+import openpyxl
+import PyPDF2
+
 logger = logging.getLogger(__name__)
+
+# Configuration for GCS and Pub/Sub
+GCS_BUCKET_NAME = os.getenv("GCS_UPLOAD_BUCKET", "nooko-project-quotes")
+PUBSUB_TOPIC_ID = os.getenv("PUBSUB_PROCESSING_TOPIC", "quote-analysis-requests")
+GCP_PROJECT_ID = os.getenv("PROJECT_ID", "nooko-yourinteriordeco-ai")
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
@@ -151,51 +161,90 @@ async def book_measurement(project_id: str, request: BookingRequest) -> Dict[str
 @router.post("/projects/{project_id}/upload")
 async def upload_quote(project_id: str, file: UploadFile = File(...)) -> Dict[str, Any]:
     """
-    接收使用者上傳的報價單（PDF/Excel/圖片）並暫存於檔案系統。
-    Input: FormData file, project_id
-    Output: 儲存後的 metadata，供後續解析流程使用。
+    Receives a user-uploaded quote, performs a quick validation, saves it to GCS,
+    and dispatches a message to Pub/Sub for background processing.
     """
     if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    if file.content_type not in {
+    # Supported content types
+    supported_types = {
         "application/pdf",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "image/jpeg",
         "image/png",
-    }:
-        raise HTTPException(status_code=400, detail="不支援的檔案格式")
-
-    project_dir = UPLOAD_ROOT / project_id
-    project_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = file.filename or "upload"
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    save_path = project_dir / f"{timestamp}_{safe_name}"
+    }
+    if file.content_type not in supported_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported file format: {file.content_type}")
 
     contents = await file.read()
-    save_path.write_bytes(contents)
+    await file.seek(0) # Reset file pointer after reading
 
-    metadata = {
-        "filename": safe_name,
-        "stored_path": str(save_path),
-        "content_type": file.content_type,
-        "size_bytes": len(contents),
-        "uploaded_at": datetime.utcnow().isoformat()
-    }
+    # --- Quick Pre-flight Check ---
+    try:
+        if file.content_type == "application/pdf":
+            # Try to read the PDF metadata
+            pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
+            if len(pdf_reader.pages) == 0:
+                raise ValueError("PDF file is empty or corrupted.")
+        elif "spreadsheetml" in file.content_type or "ms-excel" in file.content_type:
+            # Try to load the workbook
+            openpyxl.load_workbook(io.BytesIO(contents))
+    except Exception as e:
+        logger.warning(f"Pre-flight check failed for {file.filename}: {e}")
+        raise HTTPException(status_code=400, detail="File appears to be corrupted or is an invalid format.")
 
-    await db_service.update_project(project_id, {"uploaded_quote": metadata})
+    # --- Upload to GCS ---
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(GCS_BUCKET_NAME)
+        
+        safe_name = file.filename or "upload"
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        destination_blob_name = f"{project_id}/{timestamp}_{safe_name}"
+        
+        blob = bucket.blob(destination_blob_name)
+        blob.upload_from_string(contents, content_type=file.content_type)
+        gcs_uri = f"gs://{GCS_BUCKET_NAME}/{destination_blob_name}"
+        logger.info(f"File {file.filename} for project {project_id} uploaded to {gcs_uri}")
+    except Exception as e:
+        logger.error(f"Failed to upload to GCS for project {project_id}: {e}")
+        raise HTTPException(status_code=500, detail="Could not save file to cloud storage.")
 
+    # --- Dispatch to Pub/Sub ---
+    try:
+        publisher = pubsub_v1.PublisherClient()
+        topic_path = publisher.topic_path(GCP_PROJECT_ID, PUBSUB_TOPIC_ID)
+        
+        message_data = {
+            "project_id": project_id,
+            "gcs_uri": gcs_uri,
+            "original_filename": safe_name,
+            "content_type": file.content_type,
+            "size_bytes": len(contents),
+            "uploaded_at": datetime.utcnow().isoformat(),
+        }
+        
+        future = publisher.publish(topic_path, data=json.dumps(message_data).encode("utf-8"))
+        future.result()  # Wait for publish to complete
+        logger.info(f"Message published to {topic_path} for project {project_id}")
+    except Exception as e:
+        logger.error(f"Failed to publish to Pub/Sub for project {project_id}: {e}")
+        # Here we might want to add cleanup logic, e.g., delete the file from GCS
+        raise HTTPException(status_code=500, detail="Could not dispatch file for analysis.")
+
+    # --- Log Event and Return Success ---
     conversation = await conversation_service.get_project_conversation(project_id)
     if conversation:
         await conversation_service.log_event(
             conversation["conversation_id"],
-            "quote_uploaded",
-            description=f"User uploaded file {safe_name}",
-            payload={"content_type": file.content_type, "size": len(contents)}
+            "quote_upload_queued",
+            description=f"User uploaded file {safe_name} for background analysis.",
+            payload={"gcs_uri": gcs_uri}
         )
 
-    return {"message": "檔案上傳成功", "metadata": metadata}
+    return {"message": "檔案上傳成功，排隊分析中..."}
 
 @router.post("/projects/{project_id}/conversation/start", response_model=StartConversationResponse)
 async def start_conversation(project_id: str) -> StartConversationResponse:

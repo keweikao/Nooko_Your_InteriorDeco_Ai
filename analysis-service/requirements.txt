@@ -30,3 +30,6 @@ google-auth>=2.37.0
 google-genai>=1.37.0
 python-multipart
 reportlab
+google-cloud-storage
+google-cloud-pubsub
+PyPDF2
