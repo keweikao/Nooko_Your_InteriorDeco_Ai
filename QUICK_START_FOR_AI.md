@@ -88,6 +88,17 @@
 - **功能規格？** → `specs/002-interior-deco-ai/spec.md`
 - **開發任務？** → `specs/002-interior-deco-ai/tasks.md`
 
+> 💡 **GCP Operations MCP Server**：已放在 `tools/gcp_ops/mcp_server.py`，可直接在 MCP 內查詢 Cloud Run/Cloud Build/Logging 狀態。
+>  - 設定範例：
+>    ```json
+>    "gcpOps": {
+>      "command": "python",
+>      "args": ["tools/gcp_ops/mcp_server.py"]
+>    }
+>    ```
+>  - 可用工具：`cloud_run_describe`、`cloud_builds_list`、`cloud_run_logs`（皆包裝 `gcloud` 指令，可帶 `project_id/region`）
+>  - 使用前務必 `gcloud auth login` 並 `gcloud config set project ...`，避免憑證/配額問題。
+
 ---
 
 ## ✅ 任務開始前自我檢查 (Final Self-Check)
