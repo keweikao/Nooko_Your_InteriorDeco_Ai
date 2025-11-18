@@ -23,33 +23,39 @@ class GeminiLLMService:
     # ... (other methods)
     def __init__(self):
         """
-        Initialize Google Gen AI SDK with Vertex AI backend.
-        Demonstrates fetching a hypothetical API key from Secret Manager.
+        Initialize the Gemini LLM service exclusively with the Vertex AI backend.
+        This approach simplifies configuration and improves stability by removing
+        the dual-backend logic.
         """
         self.spec_tracker = SpecTracker()
-        try:
-            # Attempt to fetch API key from Secret Manager
-            # In a real-world scenario with an explicit key, you would pass this to the client.
-            # For Vertex AI with ADC, this is not strictly necessary but demonstrates the pattern.
-            api_key = secret_service.get_secret("GEMINI_API_KEY")
-            if api_key:
-                logger.info("✓ Hypothetical GEMINI_API_KEY fetched from Secret Manager.")
-                # In a non-ADC setup, you might do: genai.configure(api_key=api_key)
-            else:
-                logger.warning("⚠ Could not fetch GEMINI_API_KEY from Secret Manager, relying solely on ADC.")
+        self.enabled = False
+        self.client = None
+        self.model = None
+        self.model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-001") # Corrected model name
+        project_id = os.getenv("PROJECT_ID")
+        location = os.getenv("VERTEX_LOCATION", "asia-east1") # Changed default to asia-east1
 
-            project_id = os.getenv("PROJECT_ID", "nooko-yourinteriordeco-ai")
-            location = os.getenv("VERTEX_LOCATION", "us-central1")
-            self.client = genai.Client(vertexai=True, project=project_id, location=location)
-            self.model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-002")
+        if not project_id:
+            logger.error("✗ PROJECT_ID environment variable is not set.")
+            return
+
+        try:
+            # Configure the SDK to use Vertex AI
+            genai.configure(
+                project=project_id,
+                location=location,
+            )
+            
+            # Create the model instance
+            self.model = genai.GenerativeModel(self.model_name)
             self.enabled = True
-            logger.info(f"✓ Google Gen AI SDK initialized successfully with Vertex AI backend (project={project_id}, location={location}, model={self.model_name})")
+            logger.info(
+                f"✓ Gemini client configured with Vertex AI backend (project={project_id}, location={location}, model={self.model_name})."
+            )
         except Exception as e:
-            self.enabled = False
-            self.client = None
-            self.model_name = None
-            logger.error(f"✗ Failed to initialize Google Gen AI SDK: {e}")
-            logger.warning("⚠ Using fallback responses")
+            logger.error(f"✗ Failed to initialize Google Gen AI SDK with Vertex AI: {e}")
+            # No fallback, it will remain disabled.
+
     # ... (rest of the class)
 
     def _count_tokens(self, text: str) -> int:
@@ -138,6 +144,8 @@ class GeminiLLMService:
         # (Implementation is correct and remains the same)
         return {}
 
+    from google.api_core import exceptions as google_exceptions
+
     async def generate_response_stream(
         self,
         message: str,
@@ -145,13 +153,12 @@ class GeminiLLMService:
         context: dict
     ) -> AsyncGenerator[Tuple[str, Optional[Dict[str, Any]]], None]:
         """
-        Purpose: Generate streaming response, and now also handle image generation commands.
+        Purpose: Generate streaming response, handle image generation commands, and provide detailed error handling.
         Input: message, conversation_history, context.
         Output: AsyncGenerator yielding (text_chunk, event_payload).
         """
-        if not self.enabled:
-            # Fallback logic...
-            yield ("Mock response", None)
+        if not self.enabled or not self.model:
+            yield ("抱歉，AI 服務目前無法使用。", None)
             return
 
         try:
@@ -165,40 +172,36 @@ class GeminiLLMService:
 
             contents = self._build_gemini_contents(system_prompt, processed_history, message)
 
-            response_stream = self.client.models.generate_content_stream(
-                model=self.model_name, contents=contents
+            response_stream = await self.model.generate_content_async(
+                contents=contents,
+                stream=True
             )
 
             full_response = ""
-            for chunk in response_stream:
+            async for chunk in response_stream:
                 if hasattr(chunk, 'text') and chunk.text:
                     full_response += chunk.text
-                    # Do not yield the command tag to the user
                     clean_chunk = re.sub(r'\[GENERATE_IMAGE:.*?\]', '', chunk.text)
                     if clean_chunk:
                         yield (clean_chunk, None)
-                        await asyncio.sleep(0)
-
+            
             # --- Image Generation Logic ---
             image_match = re.search(r'\[GENERATE_IMAGE: "(.*?)"\]', full_response)
             if image_match and project_id:
                 image_prompt = image_match.group(1)
                 logger.info(f"Image generation requested with prompt: {image_prompt}")
                 
-                # Yield a placeholder message to the user
                 yield ("好的，我來產生一張概念圖給您參考...", None)
                 
                 image_url = await image_service.generate_image(image_prompt, project_id)
                 
                 if image_url:
                     logger.info(f"Image generated and available at: {image_url}")
-                    # Yield a special event with the image URL
                     yield ("", {"generated_image_url": image_url})
                 else:
                     logger.error("Image generation failed.")
                     yield ("抱歉，圖片生成失敗了，請稍後再試。", None)
             
-            # After streaming and potential image generation, extract specifications
             final_text_for_extraction = re.sub(r'\[GENERATE_IMAGE:.*?\]', '', full_response).strip()
             extracted = await self._extract_specifications(
                 message,
@@ -208,9 +211,12 @@ class GeminiLLMService:
             if extracted:
                 yield ("", extracted)
 
+        except google_exceptions.GoogleAPICallError as e:
+            logger.error(f"Google API Call Error in generate_response_stream: {e}")
+            yield (f"抱歉，與 AI 服務的通訊發生錯誤: {e.message}", None)
         except Exception as e:
-            logger.error(f"Error in generate_response_stream: {e}")
-            yield ("抱歉，AI 服務發生錯誤。", None)
+            logger.error(f"Generic Error in generate_response_stream: {e}", exc_info=True)
+            yield ("抱歉，AI 服務發生未預期的錯誤。", None)
 
     # Mock methods remain the same...
     def _mock_response(self, message: str) -> str:

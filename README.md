@@ -1,4 +1,4 @@
-# 裝潢 AI 夥伴 (Nooko - Your Interior Deco AI)
+# 裝潢 AI 夥伴 (HouseIQ - Your Interior Deco AI)
 
 歡迎使用「裝潢 AI 夥伴」！這是一個創新的專案，旨在利用多 Agent AI 系統，協助使用者分析室內設計的報價單，探索需求，並最終產出專業的規格建議和風格渲染圖。
 

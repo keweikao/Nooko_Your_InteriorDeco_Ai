@@ -1,60 +1,41 @@
 import React from 'react';
-import '../ConversationUI.css';
+
+const statusConfig = {
+  idle: { text: '待命中', color: 'bg-green-500' },
+  typing: { text: '正在輸入...', color: 'bg-yellow-500' },
+  analyzing: { text: '分析中...', color: 'bg-blue-500' },
+  default: { text: '離線', color: 'bg-gray-400' },
+};
 
 /**
- * Agent 卡片組件
- * 顯示 Agent 的頭像、名稱、狀態
+ * Purpose: 顯示 AI Agent 資訊的卡片，包括頭像、名稱、狀態和簡介。
+ *
+ * Input (Props):
+ *   - agent (Object): Agent 物件，包含 name, avatar, status 等資訊。
+ *
+ * Output:
+ *   - 渲染一個包含 Agent 詳細資訊的卡片式 UI 元件。
  */
 function AgentCard({ agent }) {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'idle':
-        return 'status-idle';
-      case 'typing':
-        return 'status-typing';
-      case 'analyzing':
-        return 'status-analyzing';
-      default:
-        return 'status-idle';
-    }
-  };
-
-  const getStatusText = (status) => {
-    switch (status) {
-      case 'idle':
-        return '待命中';
-      case 'typing':
-        return '正在輸入...';
-      case 'analyzing':
-        return '分析中...';
-      default:
-        return '離線';
-    }
-  };
+  const currentStatus = statusConfig[agent?.status] || statusConfig.default;
 
   return (
-    <div className="agent-card">
-      <div className="agent-header">
-        <div className="agent-avatar-container">
-          <img
-            src={agent?.avatar || 'https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans'}
-            alt={agent?.name || 'Agent'}
-            className="agent-avatar-image"
-          />
-          <span className={`agent-status-indicator ${getStatusColor(agent?.status)}`}></span>
-        </div>
-
-        <div className="agent-info">
-          <h2 className="agent-name">{agent?.name || 'HouseIQ'}</h2>
-          <p className="agent-status-text">{getStatusText(agent?.status)}</p>
-        </div>
+    <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg border border-border">
+      <div className="relative flex-shrink-0">
+        <img
+          src={agent?.avatar || 'https://placehold.co/40x40/EBF0F4/7C8490?text=A&font=sans'}
+          alt={agent?.name || 'Agent'}
+          className="w-12 h-12 rounded-full"
+        />
+        <span
+          className={`absolute bottom-0 right-0 block w-3.5 h-3.5 ${currentStatus.color} border-2 border-muted rounded-full`}
+          title={currentStatus.text}
+        ></span>
       </div>
 
-      <div className="agent-bio">
-        <p>
-          歡迎！我是 HouseIQ，您的專業室內設計顧問。我會根據您上傳的報價單和裝修需求，
-          為您提供專業的建議和分析。
-        </p>
+      <div className="flex-grow">
+        <h2 className="font-bold text-primary">{agent?.name || 'HouseIQ'}</h2>
+        <p className="text-sm text-muted-foreground">{currentStatus.text}</p>
       </div>
     </div>
   );

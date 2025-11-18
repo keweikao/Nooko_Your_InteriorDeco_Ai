@@ -1,9 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 
-/**
- * 對話邏輯 Hook
- * 管理：消息、Agent 狀態、進度、SSE 連接
- */
 const stageDescriptions = {
   greeting: '開始對話',
   scope: '了解裝修範圍',
@@ -13,6 +9,27 @@ const stageDescriptions = {
   summary: '資訊已齊備，可準備分析'
 };
 
+/**
+ * Purpose: 管理整個對話流程的 React Hook，包括消息狀態、與後端 SSE 的通訊、進度追蹤等。
+ *
+ * Input:
+ *   - projectId (string): 當前專案的唯一識別碼。
+ *   - apiBaseUrl (string): 後端 API 的基礎 URL。
+ *
+ * Output (Object):
+ *   - messages (Array): 對話消息列表。
+ *   - agent (Object): 當前對話的 AI Agent 資訊。
+ *   - progress (Object): 對話進度狀態 { current, stage, description }。
+ *   - missingFields (Array): AI 認為還需要補充的資訊欄位列表。
+ *   - canComplete (boolean): 是否可以結束對話並查看結果。
+ *   - loading (boolean): 是否正在進行初始化。
+ *   - error (string | null): 錯誤訊息。
+ *   - isConnected (boolean): SSE 是否已成功連接。
+ *   - streamingMessageId (string | null): 正在串流中的 AI 消息 ID。
+ *   - sendMessage (function): 發送使用者消息的函式。
+ *   - completeConversation (function): 結束對話並請求最終分析結果的函式。
+ *   - setProgress (function): 手動設置進度的函式 (主要用於調試)。
+ */
 function useConversation(projectId, apiBaseUrl) {
   const [messages, setMessages] = useState([]);
   const [agent, setAgent] = useState(null);
@@ -25,10 +42,12 @@ function useConversation(projectId, apiBaseUrl) {
   const [error, setError] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState(null);
-  const [missingFields, setMissingFields] = useState([]); // 從 SSE metadata 取得的待補欄位列表
+  const [missingFields, setMissingFields] = useState([]);
 
   /**
-   * 初始化對話 - 調用後端 /conversation/init 端點
+   * Purpose: 初始化對話，通過調用後端 /conversation/init 端點獲取初始訊息和 Agent 資訊。
+   * Input: 無。
+   * Output: 更新 messages, agent, progress, isConnected, missingFields 等狀態。
    */
   const initConversation = useCallback(async () => {
     try {
@@ -52,10 +71,8 @@ function useConversation(projectId, apiBaseUrl) {
 
       const data = await response.json();
 
-      // 設置 Agent 信息
       setAgent(data.agent);
 
-      // 添加初始問候消息
       if (data.initialMessage) {
         const initialMessage = {
           id: `msg-${Date.now()}`,
@@ -84,13 +101,14 @@ function useConversation(projectId, apiBaseUrl) {
   }, [projectId, apiBaseUrl]);
 
   /**
-   * 發送消息並接收 SSE 流式回應
+   * Purpose: 發送使用者消息並通過 SSE 接收 AI 的流式回應。
+   * Input: content (string): 使用者輸入的消息內容。
+   * Output: 更新 messages, agent, progress, missingFields, streamingMessageId 等狀態。
    */
   const sendMessage = useCallback(
     async (content) => {
       try {
-        setError(null); // Clear any previous errors
-        // 添加用戶消息
+        setError(null);
         const userMessage = {
           id: `msg-${Date.now()}`,
           conversationId: 'current',
@@ -102,7 +120,6 @@ function useConversation(projectId, apiBaseUrl) {
 
         setMessages((prev) => [...prev, userMessage]);
 
-        // 更新用戶消息狀態為已發送
         setTimeout(() => {
           setMessages((prev) =>
             prev.map((msg) =>
@@ -111,10 +128,8 @@ function useConversation(projectId, apiBaseUrl) {
           );
         }, 100);
 
-        // 設置 Agent 為輸入狀態
         setAgent((prev) => ({ ...prev, status: 'typing' }));
 
-        // 建立 SSE 連接
         const eventSource = new EventSource(
           `${apiBaseUrl}/projects/${projectId}/conversation/message-stream?message=${encodeURIComponent(content)}`
         );
@@ -124,10 +139,9 @@ function useConversation(projectId, apiBaseUrl) {
 
         eventSource.addEventListener('message_chunk', (event) => {
           const data = JSON.parse(event.data);
-          console.log('Received message_chunk:', data); // Added log
+          console.log('Received message_chunk:', data);
 
           if (!agentResponseContent) {
-            // 首次 chunk，添加新消息
             const agentMessage = {
               id: agentResponseId,
               conversationId: 'current',
@@ -139,12 +153,11 @@ function useConversation(projectId, apiBaseUrl) {
             };
             setMessages((prev) => [...prev, agentMessage]);
             setStreamingMessageId(agentResponseId);
-            console.log('Set streamingMessageId:', agentResponseId); // Added log
+            console.log('Set streamingMessageId:', agentResponseId);
           }
 
           agentResponseContent += data.chunk || '';
 
-          // 更新流式消息內容
           setMessages((prev) =>
             prev.map((msg) =>
               msg.id === agentResponseId
@@ -153,7 +166,6 @@ function useConversation(projectId, apiBaseUrl) {
             )
           );
 
-          // 更新進度信息
           if (data.metadata) {
             if (data.metadata.stage) {
               setProgress((prev) => ({
@@ -173,12 +185,11 @@ function useConversation(projectId, apiBaseUrl) {
             }
           }
 
-          // 檢查是否完成
           if (data.isComplete) {
-            console.log('Received isComplete: true. Closing EventSource.'); // Added log
+            console.log('Received isComplete: true. Closing EventSource.');
             setAgent((prev) => ({ ...prev, status: 'idle' }));
             setStreamingMessageId(null);
-            console.log('Cleared streamingMessageId.'); // Added log
+            console.log('Cleared streamingMessageId.');
             eventSource.close();
           }
         });
@@ -187,7 +198,7 @@ function useConversation(projectId, apiBaseUrl) {
           console.error('SSE 連接錯誤:', error);
           setAgent((prev) => ({ ...prev, status: 'idle' }));
           setStreamingMessageId(null);
-          console.log('Cleared streamingMessageId due to error.'); // Added log
+          console.log('Cleared streamingMessageId due to error.');
           eventSource.close();
         });
       } catch (err) {
@@ -199,7 +210,9 @@ function useConversation(projectId, apiBaseUrl) {
   );
 
   /**
-   * 完成對話
+   * Purpose: 請求結束對話並獲取最終分析結果。
+   * Input: 無。
+   * Output: 成功時返回分析結果 (Object)，失敗時返回 null 並更新 error 狀態。
    */
   const completeConversation = useCallback(async () => {
     try {
@@ -231,9 +244,6 @@ function useConversation(projectId, apiBaseUrl) {
     }
   }, [projectId, apiBaseUrl, missingFields.length]);
 
-  /**
-   * 組件掛載時初始化對話
-   */
   useEffect(() => {
     initConversation();
   }, [initConversation]);

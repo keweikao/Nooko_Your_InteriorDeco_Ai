@@ -9,8 +9,8 @@ body {
   font-family: 'Inter', sans-serif; /* Use Inter directly */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: hsl(var(--color-brand-white)); /* Use Nooko White */
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  background-color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
 }
 
 .App {
@@ -21,8 +21,8 @@ body {
 
 /* Header Styles */
 .App-header {
-  background: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
-  color: hsl(var(--color-brand-white)); /* Use Nooko White */
+  background: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   padding: var(--spacing-2xl) var(--spacing-md);
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   position: relative;
@@ -36,7 +36,7 @@ body {
   right: -50%;
   width: 100%;
   height: 100%;
-  background: radial-gradient(circle, hsla(var(--color-brand-white), 0.1) 0%, transparent 70%); /* Use Nooko White with transparency */
+  background: radial-gradient(circle, hsla(var(--color-brand-white), 0.1) 0%, transparent 70%); /* Use HouseIQ White with transparency */
   animation: shimmer 8s infinite;
 }
 
@@ -93,14 +93,14 @@ body {
 }
 
 .welcome-card {
-  background: hsl(var(--color-brand-white)); /* Use Nooko White */
+  background: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   border-radius: 16px;
   padding: var(--spacing-3xl);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
   max-width: 700px;
   text-align: center;
   animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-  border: 1px solid hsla(var(--color-brand-charcoal), 0.1); /* Use Nooko Charcoal with transparency */
+  border: 1px solid hsla(var(--color-brand-charcoal), 0.1); /* Use HouseIQ Charcoal with transparency */
   position: relative;
   overflow: hidden;
 }
@@ -112,7 +112,7 @@ body {
   left: -100%;
   width: 100%;
   height: 3px;
-  background: linear-gradient(90deg, transparent, hsl(var(--color-brand-terracotta)), transparent); /* Use Nooko Terracotta */
+  background: linear-gradient(90deg, transparent, hsl(var(--color-brand-terracotta)), transparent); /* Use HouseIQ Terracotta */
   animation: gradientShine 3s infinite;
 }
 
@@ -135,9 +135,9 @@ body {
 .welcome-card h2 {
   font-family: 'Playfair Display', serif; /* Use Playfair Display */
   font-size: var(--fs-3xl);
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
   margin-bottom: var(--spacing-lg);
-  background: linear-gradient(135deg, hsl(var(--color-brand-terracotta)), hsl(var(--color-brand-charcoal))); /* Use Nooko Terracotta and Charcoal */
+  background: linear-gradient(135deg, hsl(var(--color-brand-terracotta)), hsl(var(--color-brand-charcoal))); /* Use HouseIQ Terracotta and Charcoal */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -145,7 +145,7 @@ body {
 
 .welcome-intro {
   font-size: var(--fs-base);
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
   line-height: 1.6;
   margin-bottom: var(--spacing-xl);
 }
@@ -159,7 +159,7 @@ body {
 
 .features-list li {
   font-size: var(--fs-base);
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
   margin: var(--spacing-md) 0;
   padding-left: var(--spacing-3xl);
   position: relative;
@@ -179,12 +179,12 @@ body {
   transform: translateY(-50%);
   width: var(--spacing-lg);
   height: var(--spacing-lg);
-  background-color: hsl(var(--color-brand-terracotta)); /* Use Nooko Terracotta */
+  background-color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: hsl(var(--color-brand-white)); /* Use Nooko White */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   font-weight: bold;
   font-size: 12px;
   animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -202,14 +202,14 @@ body {
 .primary-button {
   padding: var(--spacing-md) var(--spacing-2xl);
   background: hsl(var(--color-brand-terracotta)); /* Use Nooko Terracotta */
-  color: hsl(var(--color-brand-white)); /* Use Nooko White */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   border: none;
   border-radius: 30px;
   font-size: var(--fs-lg);
   font-weight: 600;
   cursor: pointer;
   transition: all var(--transition-normal) var(--easing-ease-out);
-  box-shadow: 0 4px 15px hsla(var(--color-brand-terracotta), 0.4); /* Use Nooko Terracotta with transparency */
+  box-shadow: 0 4px 15px hsla(var(--color-brand-terracotta), 0.4); /* Use HouseIQ Terracotta with transparency */
   position: relative;
   overflow: hidden;
 }
@@ -221,7 +221,7 @@ body {
   left: 50%;
   width: 0;
   height: 0;
-  background: hsla(var(--color-brand-white), 0.3); /* Use Nooko White with transparency */
+  background: hsla(var(--color-brand-white), 0.3); /* Use HouseIQ White with transparency */
   border-radius: 50%;
   transform: translate(-50%, -50%);
   transition: width var(--transition-normal), height var(--transition-normal);
@@ -234,7 +234,7 @@ body {
 
 .primary-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px hsla(var(--color-brand-terracotta), 0.6); /* Use Nooko Terracotta with transparency */
+  box-shadow: 0 6px 20px hsla(var(--color-brand-terracotta), 0.6); /* Use HouseIQ Terracotta with transparency */
 }
 
 .primary-button:active:not(:disabled) {
@@ -251,7 +251,7 @@ body {
 .project-id-info {
   margin-top: 20px;
   font-size: 12px;
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
 }
 
 /* Section Styles */
@@ -274,7 +274,7 @@ body {
 }
 
 .section-card {
-  background: hsl(var(--color-brand-white)); /* Use Nooko White */
+  background: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   border-radius: 12px;
   padding: 40px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -290,8 +290,8 @@ body {
 .step-indicator {
   display: inline-block;
   padding: 6px 16px;
-  background-color: hsla(var(--color-brand-terracotta), 0.1); /* Use Nooko Terracotta with transparency */
-  color: hsl(var(--color-brand-terracotta)); /* Use Nooko Terracotta */
+  background-color: hsla(var(--color-brand-terracotta), 0.1); /* Use HouseIQ Terracotta with transparency */
+  color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
   border-radius: 20px;
   font-size: 14px;
   font-weight: 600;
@@ -302,13 +302,13 @@ body {
 .section-header h2 {
   font-family: 'Playfair Display', serif; /* Use Playfair Display */
   font-size: 28px;
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
   margin-bottom: 15px;
 }
 
 .section-description {
   font-size: 16px;
-  color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
   line-height: 1.6;
   margin-bottom: 25px;
 }
@@ -321,7 +321,7 @@ body {
 .text-button {
   background: none;
   border: none;
-  color: hsl(var(--color-brand-terracotta)); /* Use Nooko Terracotta */
+  color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
   font-size: 15px;
   cursor: pointer;
   text-decoration: underline;
@@ -329,13 +329,13 @@ body {
 }
 
 .text-button:hover {
-  color: hsla(var(--color-brand-terracotta), 0.8); /* Use Nooko Terracotta with transparency */
+  color: hsla(var(--color-brand-terracotta), 0.8); /* Use HouseIQ Terracotta with transparency */
 }
 
 /* Footer */
 .app-footer {
-  background-color: hsl(var(--color-brand-charcoal)); /* Use Nooko Charcoal */
-  color: hsl(var(--color-brand-white)); /* Use Nooko White */
+  background-color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
   text-align: center;
   padding: 20px;
   margin-top: auto;

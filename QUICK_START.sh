@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Nooko 快速啟動腳本
+# HouseIQ 快速啟動腳本
 # 使用方法：chmod +x QUICK_START.sh && ./QUICK_START.sh
 
-echo "🚀 Nooko 裝潢 AI 夥伴 - 本地測試啟動"
+echo "🚀 HouseIQ 裝潢 AI 夥伴 - 本地測試啟動"
 echo "=================================="
 echo ""
 
@@ -32,9 +32,9 @@ echo -e "${BLUE}或者使用以下一鍵指令：${NC}"
 echo ""
 
 echo -e "${GREEN}方案 A - 使用 tmux（推薦）：${NC}"
-echo "tmux new-session -d -s nooko 'cd analysis-service && pip3 install -r requirements.txt && uvicorn src.main:app --reload'"
+echo "tmux new-session -d -s houseiq 'cd analysis-service && pip3 install -r requirements.txt && uvicorn src.main:app --reload'"
 echo "tmux split-window -h 'cd web-service && npm install && npm run dev'"
-echo "tmux attach -t nooko"
+echo "tmux attach -t houseiq"
 echo ""
 
 echo -e "${GREEN}方案 B - 背景執行：${NC}"

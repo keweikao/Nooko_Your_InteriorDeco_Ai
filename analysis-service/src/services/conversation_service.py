@@ -35,14 +35,16 @@ class ConversationService:
         conversation_id: str,
         sender: str,
         content: str,
+        message_type: str = "text",
         metadata: Optional[Dict[str, Any]] = None
     ) -> str:
-        """保存單一消息到 Firestore"""
+        """保存單一消息到 Firestore，並支持自訂消息類型"""
         doc_ref, message_ref = await self.conversations_col.document(
             conversation_id
         ).collection("messages").add({
             "sender": sender,
             "content": content,
+            "type": message_type, # Add message type field
             "timestamp": firestore.SERVER_TIMESTAMP,
             "metadata": metadata or {}
         })

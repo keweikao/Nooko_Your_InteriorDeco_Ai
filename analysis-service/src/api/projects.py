@@ -9,19 +9,19 @@ import io
 import asyncio
 import json
 import logging
+import re
 from pathlib import Path
 
-from google.cloud import storage
-from google.cloud import pubsub_v1
+from google.cloud import storage, pubsub_v1, firestore
 import openpyxl
 import PyPDF2
 
 logger = logging.getLogger(__name__)
 
 # Configuration for GCS and Pub/Sub
-GCS_BUCKET_NAME = os.getenv("GCS_UPLOAD_BUCKET", "nooko-project-quotes")
+GCS_BUCKET_NAME = os.getenv("GCS_UPLOAD_BUCKET", "houseiq-project-quotes")
 PUBSUB_TOPIC_ID = os.getenv("PUBSUB_PROCESSING_TOPIC", "quote-analysis-requests")
-GCP_PROJECT_ID = os.getenv("PROJECT_ID", "nooko-yourinteriordeco-ai")
+GCP_PROJECT_ID = os.getenv("PROJECT_ID", "houseiq-yourinteriordeco-ai")
 
 from src.agents.client_manager_v2 import ClientManagerAgentV2, QuestionCategory
 from src.agents.construction_translator import ConstructionTranslator
@@ -102,6 +102,49 @@ class CompleteConversationResponse(BaseModel):
 class BookingRequest(BaseModel):
     name: str
     phone: str
+    region: Optional[str] = None # 新增 region 欄位
+
+class FeedbackRequest(BaseModel):
+    satisfaction_score: int
+    helpfulness_score: int
+
+@router.post("/projects/{project_id}/feedback")
+async def submit_feedback(project_id: str, request: FeedbackRequest) -> Dict[str, Any]:
+    """
+    接收使用者對互動和規格書的滿意度回饋。
+    Input: projectId + FeedbackRequest；Output: 成功訊息。
+    """
+    if not await conversation_service.project_exists(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    conversation = await conversation_service.get_project_conversation(project_id)
+    if conversation:
+        await conversation_service.log_event(
+            conversation["conversation_id"],
+            "user_feedback_submitted",
+            description="User submitted feedback scores.",
+            payload={
+                "satisfaction_score": request.satisfaction_score,
+                "helpfulness_score": request.helpfulness_score
+            }
+        )
+    
+    # 儲存回饋到 project document 或單獨的 collection
+    await db_service.update_project(
+        project_id,
+        {
+            "feedback": {
+                "satisfaction_score": request.satisfaction_score,
+                "helpfulness_score": request.helpfulness_score,
+                "timestamp": firestore.SERVER_TIMESTAMP
+            }
+        }
+    )
+
+    return {
+        "status": "success",
+        "message": f"Feedback submitted for project {project_id}"
+    }
 
 
 
@@ -117,7 +160,7 @@ async def create_project() -> CreateProjectResponse:
         project_id=project_id,
         status="created",
         created_at=created_at,
-        welcome_message="歡迎來到 Nooko 裝潢 AI 夥伴！讓我們一起規劃您的理想空間。"
+        welcome_message="歡迎來到 HouseIQ 裝潢 AI 夥伴！讓我們一起規劃您的理想空間。"
     )
 
 @router.get("/projects/{project_id}")
@@ -133,13 +176,13 @@ async def get_project(project_id: str) -> Dict[str, Any]:
 @router.post("/projects/{project_id}/book")
 async def book_measurement(project_id: str, request: BookingRequest) -> Dict[str, Any]:
     """
-    簡化預約 API：前端僅提交姓名與電話，後端將資料寫入 Firestore (db_service)。
+    簡化預約 API：前端提交姓名、電話和地區，後端將資料寫入 Firestore (db_service)。
     Input: projectId + BookingRequest；Output: 成功訊息與保存的資料。
     """
     if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    booking = Booking(project_id=project_id, name=request.name, contact=request.phone)
+    booking = Booking(project_id=project_id, name=request.name, contact=request.phone, region=request.region)
     await db_service.save_booking(booking)
 
     conversation = await conversation_service.get_project_conversation(project_id)
@@ -148,7 +191,7 @@ async def book_measurement(project_id: str, request: BookingRequest) -> Dict[str
             conversation["conversation_id"],
             "booking_created",
             description="User requested onsite measurement.",
-            payload={"name": request.name, "phone": request.phone}
+            payload={"name": request.name, "phone": request.phone, "region": request.region}
         )
 
     return {
@@ -470,11 +513,21 @@ async def generate_pdf_report_endpoint(project_id: str, request: ReportRequest):
 
 @router.post("/projects/{project_id}/conversation/init", response_model=InitConversationResponse)
 async def init_conversation(project_id: str) -> InitConversationResponse:
-    """初始化真實對話 - Initialize real conversation with Agent1"""
+    """
+    Purpose: Initialize or resume a conversation for a project.
+             If a quote has been uploaded and processed, it triggers an analysis and
+             returns a tailored initial message. Otherwise, it returns a generic welcome.
+
+    Input:
+        project_id (str): The unique identifier for the project.
+
+    Output:
+        InitConversationResponse: Contains the conversation ID, agent info, and the initial message.
+    """
     if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # 創建新的對話會話
+    # Create a new conversation session
     conversation_id = f"conv-{uuid.uuid4()}"
     await conversation_service.create_conversation(conversation_id, project_id)
     await conversation_service.log_event(
@@ -482,20 +535,47 @@ async def init_conversation(project_id: str) -> InitConversationResponse:
         "conversation_initialized",
         description="Conversation created via init endpoint."
     )
-    # 初始化 Firestore 中的欄位追蹤狀態（供前端/LLM 使用）
+    
+    # Initialize spec tracking in Firestore
     await conversation_service.update_extracted_specs(conversation_id, spec_tracker.empty_state())
     await conversation_service.update_missing_fields(conversation_id, spec_tracker.initial_missing_fields())
     await conversation_service.update_conversation_stage(conversation_id, "greeting", 0)
 
-    # Agent 信息 - HouseIQ (客戶經理)
+    # Agent Information
     agent = {
         "name": "HouseIQ",
         "avatar": "👨‍💼",
         "status": "idle"
     }
 
-    # 初始問候消息 - 繁體中文
-    initial_message = """哈囉！我是 HouseIQ，很高興協助您規劃空間。可以先跟我分享這次想改善哪些區域或期待的重點嗎？我會一步步了解您的想法，並告知哪些資訊還需要補充。"""
+    initial_message = ""
+    
+    # Check if processed quote content exists
+    project_data = await db_service.get_project(project_id)
+    quote_content = project_data.get("original_quote_content")
+
+    if quote_content:
+        logger.info(f"Found original_quote_content for project {project_id}. Analyzing...")
+        # If quote exists, analyze it to generate the first message
+        analysis_result = await gemini_service.analyze_quote_and_generate_initial_response(quote_content)
+        
+        if analysis_result and "analysis" in analysis_result:
+            # Save the analysis to the project
+            await db_service.update_project(project_id, {"quote_analysis": analysis_result["analysis"]})
+            initial_message = analysis_result.get("initial_response", "")
+            await conversation_service.log_event(
+                conversation_id,
+                "quote_analysis_completed",
+                description="Initial quote analysis successful.",
+                payload=analysis_result["analysis"]
+            )
+        else:
+            logger.warning(f"Quote analysis failed for project {project_id}. Falling back.")
+            initial_message = "抱歉，分析您的報價單時發生了點問題。不過沒關係，我們可以先從聊聊您的需求開始嗎？"
+
+    if not initial_message:
+        # Fallback for when there's no quote or analysis fails
+        initial_message = "哈囉！我是 HouseIQ，很高興協助您規劃空間。可以先跟我分享這次想改善哪些區域或期待的重點嗎？我會一步步了解您的想法，並告知哪些資訊還需要補充。"
 
     return InitConversationResponse(
         conversationId=conversation_id,
@@ -511,10 +591,25 @@ async def generate_agent_response(
     conversation_history: List[Dict[str, Any]] = None,
     extracted_specs: Dict[str, Any] = None
 ) -> AsyncGenerator[Tuple[str, Optional[Dict[str, Any]]], None]:
-    """Generate Agent response with streaming using Gemini LLM - 使用 Gemini 生成 Agent 回應流
+    """
+    Purpose: 使用 Gemini LLM 生成 Agent 回應，並支援流式輸出。
+             此函式整合了 Gemini API 進行智慧對話和規格提取。
+             它會將 AI 的回應分塊 (chunk) 傳回，並可能包含規格更新。
 
-    Integrates with Gemini API for intelligent conversations and specification extraction.
-    Yields tuples of (text_chunk, spec_updates).
+    Input:
+        message (str): 使用者當前輸入的訊息。
+        conversation_id (str): 當前對話的唯一識別碼。
+        conversation_history (List[Dict[str, Any]], optional): 過去的對話歷史，用於提供上下文給 LLM。
+                                                                來源為 Firestore。
+        extracted_specs (Dict[str, Any], optional): 已從對話中提取的規格，用於引導 LLM。
+                                                     來源為 Firestore。
+
+    Output:
+        AsyncGenerator[Tuple[str, Optional[Dict[str, Any]]], None]:
+            一個非同步生成器，每次產生一個元組 (text_chunk, spec_update)。
+            text_chunk (str): AI 回應的文字片段。
+            spec_update (Dict[str, Any], optional): 從 AI 回應中提取的潛在規格更新。
+            此輸出會被 `send_message_stream` 函式消費，並透過 SSE 傳送給前端。
     """
 
     if conversation_history is None:
@@ -552,8 +647,15 @@ async def send_message_stream(
     project_id: str,
     message: str = Query(...),
 ) -> StreamingResponse:
-    """發送消息並通過 SSE 流式接收 Agent 回應 - Send message and receive streaming response"""
-
+    """
+    Purpose: Establishes a Server-Sent Events (SSE) endpoint to handle real-time,
+             bidirectional conversation between the user and the AI agent.
+    Input:
+        project_id (str): The project's unique identifier.
+        message (str): The user's message.
+    Output:
+        StreamingResponse: A stream of events including text chunks, spec updates, and image URLs.
+    """
     conversation = await conversation_service.get_project_conversation(project_id)
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found for this project")
@@ -562,10 +664,9 @@ async def send_message_stream(
 
     async def event_generator():
         try:
-            # Get conversation history and extracted specs from storage
+            # Initial setup
             conversation_history = await conversation_service.get_conversation_history(conversation_id)
             extracted_specs = await conversation_service.get_current_specs(conversation_id) or {}
-            # 根據現有欄位計算目前階段，以便在第一個 chunk 就傳回給前端
             tracking_snapshot = spec_tracker.evaluate(extracted_specs)
             current_stage = tracking_snapshot["stage"]
             current_progress = tracking_snapshot["progress"]
@@ -574,133 +675,96 @@ async def send_message_stream(
             # Save user message
             await conversation_service.save_message(conversation_id, "user", message)
             await conversation_service.log_event(
-                conversation_id,
-                "user_message_received",
-                source="user",
-                description=message[:200],
-                payload={"length": len(message)}
+                conversation_id, "user_message_received", source="user", description=message[:200]
             )
 
-            # 生成 Agent 回應 with Gemini integration
+            # Generate and stream agent response
             response_text = ""
             await conversation_service.log_event(
-                conversation_id,
-                "agent_stream_started",
-                source="agent",
-                payload={"model": getattr(gemini_service, "model_name", "unknown")}
+                conversation_id, "agent_stream_started", source="agent", payload={"model": getattr(gemini_service, "model_name", "unknown")}
             )
-            async for text_chunk, spec_update in generate_agent_response(
+            
+            context = {
+                "project_id": project_id,
+                "conversation_id": conversation_id,
+                "role": "houseiq",
+                "extracted_specs": extracted_specs
+            }
+
+            async for text_chunk, spec_update in gemini_service.generate_response_stream(
                 message=message,
-                conversation_id=conversation_id,
                 conversation_history=conversation_history,
-                extracted_specs=extracted_specs
+                context=context
             ):
                 if text_chunk:
                     response_text += text_chunk
-
-                    # 每個字符發送一次事件（real-time streaming）
                     event_data = {
-                        "chunk": text_chunk,
-                        "isComplete": False,
-                        "metadata": {
-                            "stage": current_stage,
-                            "progress": current_progress,
-                            "missingFields": current_missing_fields[:3]
-                        }
+                        "chunk": text_chunk, "isComplete": False,
+                        "metadata": {"stage": current_stage, "progress": current_progress, "missingFields": current_missing_fields[:3]}
                     }
                     yield f"event: message_chunk\n"
                     yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
 
-                # Handle spec updates
                 if spec_update:
-                    tracking_snapshot = spec_tracker.merge(extracted_specs, spec_update)
-                    extracted_specs = tracking_snapshot["state"]
-                    current_stage = tracking_snapshot["stage"]
-                    current_progress = tracking_snapshot["progress"]
-                    current_missing_fields = tracking_snapshot["missing_fields"]
-                    if tracking_snapshot["changed"]:
-                        await conversation_service.update_extracted_specs(conversation_id, extracted_specs)
-                    await conversation_service.update_missing_fields(conversation_id, current_missing_fields)
-                    await conversation_service.update_conversation_stage(
-                        conversation_id,
-                        current_stage,
-                        current_progress
-                    )
-                    logger.info(f"Specs updated: {list(spec_update.keys())}")
-                    await conversation_service.log_event(
-                        conversation_id,
-                        "spec_updated",
-                        source="agent",
-                        payload={"fields": list(spec_update.keys())}
-                    )
+                    # --- Handle Image Generation Event (Task 2.3.3) ---
+                    image_url = spec_update.pop("generated_image_url", None)
+                    if image_url:
+                        await conversation_service.save_message(
+                            conversation_id, "agent", image_url, message_type="image"
+                        )
+                        await conversation_service.log_event(
+                            conversation_id, "agent_generated_image", source="agent", payload={"url": image_url}
+                        )
 
-            # Save the full agent response message to history
-            await conversation_service.save_message(conversation_id, "agent", response_text)
+                    # --- Handle other spec updates ---
+                    if spec_update: # If there are still items left after popping the image url
+                        tracking_snapshot = spec_tracker.merge(extracted_specs, spec_update)
+                        if tracking_snapshot["changed"]:
+                            extracted_specs = tracking_snapshot["state"]
+                            current_stage = tracking_snapshot["stage"]
+                            current_progress = tracking_snapshot["progress"]
+                            current_missing_fields = tracking_snapshot["missing_fields"]
+                            await conversation_service.update_extracted_specs(conversation_id, extracted_specs)
+                            await conversation_service.update_missing_fields(conversation_id, current_missing_fields)
+                            await conversation_service.update_conversation_stage(conversation_id, current_stage, current_progress)
+                            await conversation_service.log_event(
+                                conversation_id, "spec_updated", source="agent", payload={"fields": list(spec_update.keys())}
+                            )
 
-            # 發送完成事件
-            tracking_snapshot = spec_tracker.evaluate(extracted_specs)
-            current_stage = tracking_snapshot["stage"]
-            current_progress = tracking_snapshot["progress"]
-            current_missing_fields = tracking_snapshot["missing_fields"]
-            await conversation_service.update_missing_fields(conversation_id, current_missing_fields)
-            await conversation_service.update_conversation_stage(
-                conversation_id,
-                current_stage,
-                current_progress
-            )
-            final_specs = extracted_specs or {}
+            # Save the full text response (cleaned of any commands)
+            final_response_text = re.sub(r'\[GENERATE_IMAGE:.*?\]', '', response_text).strip()
+            if final_response_text:
+                await conversation_service.save_message(conversation_id, "agent", final_response_text)
+
+            # Send completion event
+            final_snapshot = spec_tracker.evaluate(extracted_specs)
             complete_event = {
-                "chunk": "",
-                "isComplete": True,
+                "chunk": "", "isComplete": True,
                 "metadata": {
-                    "stage": current_stage,
-                    "progress": current_progress,
-                    "missingFields": current_missing_fields,
-                    "extracted_specs": final_specs or {}
+                    "stage": final_snapshot["stage"], "progress": final_snapshot["progress"],
+                    "missingFields": final_snapshot["missing_fields"], "extracted_specs": extracted_specs or {}
                 }
             }
             yield f"event: message_chunk\n"
             yield f"data: {json.dumps(complete_event, ensure_ascii=False)}\n\n"
             await conversation_service.log_event(
-                conversation_id,
-                "agent_stream_completed",
-                source="agent",
-                payload={
-                    "response_length": len(response_text),
-                    "specs_known": list((final_specs or {}).keys())
-                }
+                conversation_id, "agent_stream_completed", source="agent", payload={"response_length": len(final_response_text)}
             )
 
         except Exception as e:
             logger.error(f"Error in stream: {e}")
-            await conversation_service.log_event(
-                conversation_id,
-                "agent_stream_error",
-                severity="error",
-                description=str(e)
-            )
-            error_event = {
-                "error": str(e),
-                "isComplete": True
-            }
-            yield f"event: error\n"
-            yield f"data: {json.dumps(error_event, ensure_ascii=False)}\n\n"
+            # Error handling...
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-            "Connection": "keep-alive"
-        }
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"})
 
 
 @router.post("/projects/{project_id}/conversation/complete", response_model=CompleteConversationResponse)
 async def complete_conversation(project_id: str) -> CompleteConversationResponse:
-    """完成對話並返回總結 - Complete conversation and return summary"""
-
+    """
+    Purpose: Finalize the conversation, generate all analysis, and return the complete solution package.
+    Input: project_id (str)
+    Output: CompleteConversationResponse containing summary, brief, and the full analysis.
+    """
     if not await conversation_service.project_exists(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -709,56 +773,70 @@ async def complete_conversation(project_id: str) -> CompleteConversationResponse
         raise HTTPException(status_code=404, detail="Conversation not found for this project")
 
     conversation_id = conversation["conversation_id"]
-    specs = await conversation_service.get_current_specs(conversation_id) or {}
-    evaluation = spec_tracker.evaluate(specs)
-    missing_fields = evaluation["missing_fields"]
+    
+    # Fetch all necessary data from Firestore
+    project_data = await db_service.get_project(project_id)
+    specs = project_data.get("extracted_specs", {})
+    quote_analysis = project_data.get("quote_analysis", {})
 
-    if missing_fields:
+    # Validate conversation completion
+    evaluation = spec_tracker.evaluate(specs)
+    if evaluation["missing_fields"]:
         raise HTTPException(
             status_code=400,
-            detail={
-                "message": "對話尚未完成，仍有關鍵資訊缺失。",
-                "missing_fields": missing_fields
-            }
+            detail={"message": "對話尚未完成，仍有關鍵資訊缺失。", "missing_fields": evaluation["missing_fields"]}
         )
 
-    # 將收集到的欄位整理成 ProjectBrief，並同步保存對話摘要
+    # Build the main project brief and summary
     briefing_model = _build_project_brief(project_id, specs)
     summary = _build_summary_from_brief(briefing_model)
     analysis = _build_analysis_from_brief(briefing_model)
+    analysis["original_quote_analysis"] = quote_analysis # Add initial quote analysis to the final package
 
+    # --- Generate Budget Trade-off Suggestions (Task 2.2) ---
+    budget_suggestions = await gemini_service.generate_budget_tradeoff_suggestions(
+        extracted_specs=specs,
+        quote_analysis=quote_analysis
+    )
+    if budget_suggestions:
+        analysis["budget_tradeoffs"] = budget_suggestions
+        await conversation_service.log_event(
+            conversation_id,
+            "budget_analysis_completed",
+            description="Budget trade-off suggestions generated."
+        )
+
+    # Update project with the core brief and summary first
     await db_service.update_project(
         project_id,
         {
             "project_brief": briefing_model.model_dump(),
-            "conversation_summary": summary
+            "conversation_summary": summary,
+            "budget_tradeoff_analysis": budget_suggestions or {}
         }
     )
 
-    # 多 Agent 協作
+    # --- Multi-Agent Collaboration ---
     await conversation_service.log_event(
         conversation_id,
         "handoff_started",
         description="Dispatching project brief to contractor/designer agents."
     )
-
-    # 呼叫其他 Agent 產出報價與渲染圖（皆為 async）
     contractor_quote = await contractor_agent.run(briefing_model)
     designer_output = await designer_agent.run(briefing_model)
 
+    # Update project with agent outputs
     await db_service.update_project_with_quote(project_id, contractor_quote)
-    await db_service.update_project_with_rendering(
-        project_id,
-        designer_output.get("image_url", "")
-    )
+    await db_service.update_project_with_rendering(project_id, designer_output.get("image_url", ""))
 
+    # Add agent outputs to the final analysis package
     analysis["quote"] = contractor_quote.model_dump()
     analysis["rendering_url"] = designer_output.get("image_url")
 
     await conversation_service.log_event(
         conversation_id,
         "conversation_completed",
-        description="Conversation marked as complete and briefing generated."
+        description="Conversation marked as complete and all analyses generated."
     )
 
     return CompleteConversationResponse(

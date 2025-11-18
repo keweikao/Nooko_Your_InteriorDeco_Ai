@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Test deployment script for Nooko Interior Design AI
+# Test deployment script for HouseIQ Interior Design AI
 
-echo "=== Testing Nooko Deployment ==="
+echo "=== Testing HouseIQ Deployment ==="
 echo ""
 
 # Get service URLs

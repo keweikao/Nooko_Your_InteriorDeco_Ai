@@ -52,8 +52,8 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))"
         },
-        // Nooko Brand Colors
-        nooko: {
+        // HouseIQ Brand Colors
+        houseiq: {
           white: "hsl(var(--color-brand-white))",
           charcoal: "hsl(var(--color-brand-charcoal))",
           terracotta: "hsl(var(--color-brand-terracotta))"

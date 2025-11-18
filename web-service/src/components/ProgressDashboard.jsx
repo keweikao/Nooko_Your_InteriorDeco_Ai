@@ -4,8 +4,7 @@ const steps = [
   { id: 'upload', name: '上傳報價單' },
   { id: 'questionnaire', name: '需求深度訪談' },
   { id: 'analysis', name: 'AI 智慧分析' }, // This step is internal, but shown for transparency
-  { id: 'results', name: '產出專屬藍圖' },
-  { id: 'booking', name: '預約免費丈量' },
+    { id: 'booking', name: '預約免費丈量' },
 ];
 
 const ProgressDashboard = ({ currentStepId }) => {

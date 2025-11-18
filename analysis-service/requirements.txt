@@ -33,3 +33,5 @@ reportlab
 google-cloud-storage
 google-cloud-pubsub
 PyPDF2
+google-cloud-aiplatform
+google-cloud-secret-manager

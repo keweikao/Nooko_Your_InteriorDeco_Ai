@@ -440,7 +440,7 @@ class ClientManagerAgent:
 
     def get_welcome_message(self) -> str:
         """Generate welcome message"""
-        return "歡迎來到 Nooko 裝潢 AI 夥伴！我是您的專屬客戶經理，將協助您分析報價單並了解您的裝潢需求。讓我們開始吧！"
+        return "歡迎來到 HouseIQ 裝潢 AI 夥伴！我是您的專屬客戶經理，將協助您分析報價單並了解您的裝潢需求。讓我們開始吧！"
 
     def get_next_question(self, context: Dict[str, Any]) -> Optional[Question]:
         """

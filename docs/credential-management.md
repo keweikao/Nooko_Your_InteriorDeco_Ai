@@ -14,7 +14,7 @@
 
 | 服務 / 用途 | Secret Manager 名稱 | 環境變數 / 檔案 | 用途說明 |
 |-------------|---------------------|------------------|----------|
-| GCP Service Account (JSON) | `nooko-ai-service-account` | `GOOGLE_APPLICATION_CREDENTIALS` 指向下載檔 | Cloud Build、Cloud Run、Firestore/Storage/Tasks 權限。部署時可直接指定服務帳號或掛載 JSON。 |
+| GCP Service Account (JSON) | `houseiq-ai-service-account` | `GOOGLE_APPLICATION_CREDENTIALS` 指向下載檔 | Cloud Build、Cloud Run、Firestore/Storage/Tasks 權限。部署時可直接指定服務帳號或掛載 JSON。 |
 | Gemini API Key | `gemini-api-key` | `GEMINI_API_KEY` | `mcp__gcp_ai` / Vertex AI 呼叫（當 LLM 從 mock 切換為真正的 Gemini/Imagen 時使用）。 |
 
 > 目前專案只會使用上述兩個 Secret。若將來導入新的外部服務（如 Slack、Twilio 等），再依需求擴充表格。
@@ -28,7 +28,7 @@
 ### 1. 使用 Secret Manager CLI
 
 ```bash
-gcloud secrets versions access latest --secret=nooko-ai-service-account > /tmp/sa.json
+gcloud secrets versions access latest --secret=houseiq-ai-service-account > /tmp/sa.json
 gcloud secrets versions access latest --secret=gemini-api-key
 ```
 
@@ -50,7 +50,7 @@ echo "GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/sa.json" >> .env
 
 ### 3. Cloud Run / Cloud Functions
 
-- Cloud Run 建議直接指派具備 `roles/datastore.user` 的服務帳號；若需使用 key 檔，可在 Secret Manager 掛載 JSON 後於部署時加入 `--set-secrets GOOGLE_APPLICATION_CREDENTIALS=nooko-ai-service-account:latest`。
+- Cloud Run 建議直接指派具備 `roles/datastore.user` 的服務帳號；若需使用 key 檔，可在 Secret Manager 掛載 JSON 後於部署時加入 `--set-secrets GOOGLE_APPLICATION_CREDENTIALS=houseiq-ai-service-account:latest`。
 - `GEMINI_API_KEY` 僅在 `mcp__gcp_ai` 或後端呼叫 Vertex AI 時需要，沒使用可暫不注入。
 
 ---

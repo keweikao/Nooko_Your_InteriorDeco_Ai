@@ -216,6 +216,167 @@ This is not optional. Failure to record development activities breaks continuity
 
 ---
 
+## 🧱 Architectural Principles
+
+### Rule 8: Feature Componentization ✅ REQUIRED
+
+**WHEN**: When developing new features, especially on the frontend (React).
+
+**WHAT**: Encapsulate distinct features into their own standalone components. A parent component should act as a container, composing these feature components, rather than defining large blocks of feature logic internally.
+
+**WHY**:
+- **Modularity**: Makes the codebase easier to understand, navigate, and maintain.
+- **Reusability**: Components can be reused in different parts of the application.
+- **Flexibility**: Features can be easily added, removed, or swapped out by changing the composition in the parent component, without requiring large-scale refactoring.
+- **Testability**: Independent components are easier to unit test in isolation.
+
+**Example**:
+- **Bad**: A single `FinalResult.jsx` component that contains all the JSX and logic for displaying a spec sheet, a budget analysis, a quote, and a feedback form.
+- **Good**:
+    - `FinalResult.jsx`: Acts as a container, managing layout and state.
+    - `components/results/SpecCard.jsx`: A component dedicated to displaying the spec sheet.
+    - `components/results/BudgetCard.jsx`: A component for the budget analysis.
+    - `components/results/QuoteTable.jsx`: A component for the quote.
+    - `components/FeedbackFlow.jsx`: A component that handles the entire multi-step feedback and booking process.
+    - `FinalResult.jsx` then imports and composes these components.
+
+### Rule 9: LLM Usage and Token Optimization ✅ REQUIRED
+
+**WHEN**: Anytime an LLM (AI assistant) needs to retrieve information from project documentation (specs, plans, constitution, tasks).
+
+**WHAT**:
+- **DO NOT** directly read the full content of Markdown files (e.g., `spec.md`, `plan.md`, `tasks.md`, `constitution.md`).
+- **INSTEAD**, use provided Code APIs or CLI tools (e.g., from `.specify/mcp-server/servers/` or `./.specify/llm`) to fetch only the necessary, summarized, or specific sections of information.
+- **CONTROL TOKEN USAGE**: Always aim to minimize the number of tokens consumed for information retrieval.
+
+**WHY**:
+- **Cost Efficiency**: Directly reading large Markdown files consumes a significant amount of tokens, leading to higher operational costs.
+- **Performance**: Reduces latency by processing smaller, more focused contexts.
+- **Context Management**: Prevents context window overflow and improves the LLM's ability to focus on the most relevant information.
+
+**Example**:
+- **❌ Wrong**:
+    ```
+    請讀取 .specify/memory/constitution.md 的完整內容，
+    我要了解專案的開發原則。
+    ```
+- **✅ Correct**:
+    ```typescript
+    // Assuming a Code API is available
+    import * as constitution from './.specify/mcp-server/servers/constitution/index.js';
+    const summary = await constitution.getConstitutionSummary();
+    console.log(summary.summary); // Only uses ~300 tokens instead of 2,340 tokens!
+    ```
+    Or, if using a CLI:
+    ```bash
+    ./.specify/llm constitution-summary
+    ```
+- **❌ Wrong**:
+    ```
+    請讀取 spec.md、plan.md 和 tasks.md 的完整內容，
+    找出任務 3.2 的資訊，然後協助我實作。
+    ```
+- **✅ Correct**:
+    ```typescript
+    // Assuming a Code API is available
+    import * as tasks from './.specify/mcp-server/servers/tasks/index.js';
+    const task = await tasks.getTaskById({ taskId: '3.2', includeContext: true });
+    console.log(`任務: ${task.title}`); // Only uses ~1,200 tokens instead of 12,000 tokens!
+    ```
+    Or, if using a CLI:
+    ```bash
+    ./.specify/llm task --id 3.2 --context
+    ```
+
+### Rule 10: Subagent Usage and Best Practices ✅ REQUIRED
+
+**WHEN**: When a task can be broken down into specialized sub-tasks or requires specific expertise.
+
+**WHAT**:
+- **UTILIZE SUBAGENTS**: Leverage specialized subagents (e.g., `speckit-implementer`, `speckit-planner`, `speckit-researcher`, `speckit-tester`, `speckit-documenter`, `speckit-debugger`) for their defined purposes.
+- **CONTROL TOKEN BUDGETS**: Adhere to the token budgets specified for each subagent to maintain cost-efficiency and performance.
+- **DEFINE CLEAR TASK BOUNDARIES**: Ensure each subagent's task has a clear scope, especially regarding file modifications, to prevent conflicts.
+- **RESPECT DEPENDENCIES**: Execute tasks with dependencies in the correct sequence.
+- **MONITOR PROGRESS**: Regularly check the status of subagent tasks and overall implementation progress.
+
+**WHY**:
+- **Speed**: Subagents enable parallel execution, significantly reducing overall task completion time.
+- **Cost Efficiency**: Combined with MCP API usage, subagents optimize token consumption.
+- **Quality**: Specialized agents provide more focused and higher-quality results.
+- **Scalability**: Facilitates handling larger and more complex projects.
+
+**Available Subagents (Examples)**:
+- `speckit-implementer`: For implementing features, modifying code, writing unit tests. (Token budget: < 3,500 per task)
+- `speckit-planner`: For analyzing task dependencies, creating execution plans, estimating workload. (Token budget: < 2,000)
+- `speckit-researcher`: For investigating requirements, querying technical decisions, validating alignment. (Token budget: < 1,500)
+- `speckit-tester`: For writing and executing tests, verifying coverage. (Token budget: < 2,500)
+- `speckit-documenter`: For updating API documentation, writing user guides, updating technical documents. (Token budget: < 1,000)
+- `speckit-debugger`: For analyzing logs, identifying root causes of errors, suggesting solutions. (Token budget: < 2,000)
+
+**Best Practices**:
+- Always use MCP API or file paths for information retrieval.
+- Report token usage upon completion.
+- Clearly define file modification scopes for parallel tasks.
+- Execute dependent tasks sequentially.
+
+### Rule 11: LLM Startup and Rule Adherence ✅ REQUIRED
+
+**WHEN**: At the beginning of a new session, or when switching LLMs, or if the LLM seems to deviate from project rules.
+
+**WHAT**:
+- **INITIALIZE LLM**: Use a defined startup process to ensure the LLM understands and adheres to the project's rules, especially regarding token optimization and API usage.
+- **VERIFY UNDERSTANDING**: After startup, test the LLM's comprehension of the rules (e.g., by asking for task information that requires API usage).
+- **CORRECT DEVIATIONS**: If the LLM fails to follow rules, re-initialize it.
+
+**WHY**:
+- **Consistency**: Ensures all LLM interactions follow established best practices.
+- **Efficiency**: Reinforces token optimization and correct API usage from the start.
+- **Reliability**: Prevents misinterpretations and ensures the LLM operates within expected parameters.
+
+**Startup Methods (Examples)**:
+- **Full Startup (Recommended for first use/unfamiliar LLM)**: Execute a comprehensive initialization script (e.g., `.specify/STARTUP.md`).
+- **Quick Startup (Daily use/familiar LLM)**: Provide a concise reminder of core rules (e.g., "Do not read full docs, use APIs, token budget < 1,500").
+- **Minimal Startup (Highly familiar LLM)**: A very brief reminder (e.g., "Read .specify/QUICK-START.txt").
+
+**Verification**:
+- Test by asking for information that requires using the MCP API (e.g., "請協助我查看任務 3.2 的資訊。").
+- Correct response should involve using the API; incorrect response (e.g., trying to read the full Markdown file) requires re-initialization.
+
+### Rule 12: LLM Project Initialization and Mandatory Rules ✅ REQUIRED
+
+**WHEN**: Upon entering a Speckit MCP project, or when an LLM needs a full re-initialization.
+
+**WHAT**:
+- **READ GUIDES**: Immediately read `.specify/LLM-USAGE-GUIDE.md` to understand MCP Code Execution core concepts, prohibitions, and API usage.
+- **ADHERE TO MANDATORY RULES**:
+    - **PROHIBITED ACTIONS**:
+        - **DO NOT** directly read files: `.specify/memory/constitution.md`, `.specify/specs/*/spec.md`, `.specify/specs/*/plan.md`, `.specify/specs/*/tasks.md`.
+        - **DO NOT** use `fs.readFileSync()`, `fs.readFile()`, `fs.promises.readFile()`, or any direct file reading methods for the above documents.
+        - **DO NOT** request full document content from the user.
+    - **MANDATORY USAGE**:
+        - **ONLY** access information via TypeScript APIs (e.g., `constitution.getConstitutionSummary()`, `tasks.getTaskById()`) or CLI tools (e.g., `./.specify/llm constitution-summary`, `./.specify/llm task --id 3.2 --context`).
+- **TOKEN USAGE TARGETS**:
+    - Constitution Phase: < 500 tokens
+    - Specify Phase: < 800 tokens
+    - Plan Phase: < 1,000 tokens
+    - Implement Single Task: < 1,500 tokens
+    - Full Implement Process: < 2,000 tokens
+- **SELF-CHECK BEFORE RESPONSE**: Before generating any response, perform a self-check:
+    - ✅ Used MCP API or CLI tool.
+    - ❌ Did not directly read prohibited files.
+    - ❌ Did not use `fs.readFile*` for prohibited files.
+    - ❌ Did not request full document content from the user.
+    - 📊 Response token usage is within target.
+    - 🔍 Estimated token count is noted at the end of the response.
+- **CORRECT DEVIATIONS**: If any self-check fails, immediately correct the behavior before responding.
+
+**WHY**:
+- **Strict Adherence**: Ensures the LLM operates within the highly optimized and controlled environment of the Speckit MCP.
+- **Efficiency & Cost**: Enforces token economy and prevents wasteful operations.
+- **Project Integrity**: Maintains consistency in how information is accessed and processed across all LLM interactions.
+
+---
+
 ## 🎯 Development Workflow with Recording
 
 ### Standard Development Cycle

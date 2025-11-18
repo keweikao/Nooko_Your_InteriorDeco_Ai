@@ -1,6 +1,18 @@
 import React, { useState, useRef } from 'react';
-// import './FileUpload.css'; // Removed custom CSS import
 
+/**
+ * Purpose: 檔案上傳元件，提供拖拽和點擊選擇檔案的功能，並將檔案上傳至後端 API。
+ *          遵循「Vakly」風格的卡片式設計，並顯示上傳狀態和進度。
+ *
+ * Input (Props):
+ *   - projectId (string): 當前專案的唯一識別碼。來源為 App.jsx。
+ *   - apiBaseUrl (string): 後端 API 的基礎 URL。來源為 App.jsx。
+ *   - onUploadSuccess (function): 檔案成功上傳並排隊分析後的回調函式。來源為 App.jsx。
+ *
+ * Output:
+ *   - 渲染一個檔案上傳介面，包含拖拽區、檔案選擇輸入、上傳按鈕、狀態訊息和進度條。
+ *   - 觸發後端 API 呼叫 (POST /projects/{projectId}/upload)，並在成功時觸發 onUploadSuccess 回調。
+ */
 function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('');
@@ -9,6 +21,11 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
 
+  /**
+   * Purpose: 處理檔案選擇輸入框的變更事件。
+   * Input: event (Event): 檔案輸入框的變更事件，包含選定的檔案。
+   * Output: 更新 selectedFile 狀態為選定的檔案，並清除 uploadStatus。
+   */
   const handleFileChange = (event) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -17,6 +34,11 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
     }
   };
 
+  /**
+   * Purpose: 處理拖拽事件，用於切換拖拽區域的視覺狀態。
+   * Input: e (DragEvent): 拖拽事件 (dragenter, dragover, dragleave)。
+   * Output: 更新 dragActive 狀態。
+   */
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -27,6 +49,11 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
     }
   };
 
+  /**
+   * Purpose: 處理檔案拖放事件，驗證檔案類型並更新 selectedFile 狀態。
+   * Input: e (DragEvent): 拖放事件，包含拖放的檔案。
+   * Output: 更新 selectedFile 和 uploadStatus 狀態。若檔案類型無效，則顯示錯誤訊息。
+   */
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -41,6 +68,13 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
     }
   };
 
+  /**
+   * Purpose: 處理檔案上傳邏輯，將選定的檔案發送到後端 API。
+   * Input: 無。
+   * Output: 更新 uploadStatus, uploading, uploadProgress 狀態。
+   *         呼叫後端 API: POST /projects/{projectId}/upload。
+   *         成功時觸發 onUploadSuccess 回調，失敗時顯示錯誤訊息。
+   */
   const handleUpload = async () => {
     if (!selectedFile) {
       setUploadStatus('請先選擇一個檔案。');
@@ -73,7 +107,7 @@ function FileUpload({ projectId, apiBaseUrl, onUploadSuccess }) {
         if (onUploadSuccess) {
           setTimeout(() => {
             onUploadSuccess();
-          }, 1500);
+          }, 1500); // 延遲切換，讓使用者看到成功訊息
         }
       } else {
         const errorData = await response.json();

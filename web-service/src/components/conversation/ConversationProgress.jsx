@@ -1,52 +1,30 @@
 import React from 'react';
-import '../ConversationUI.css';
 
 /**
- * 對話進度指示器
- * 顯示當前階段和進度百分比
+ * Purpose: 顯示當前對話進度的 UI 元件，包括進度條和階段描述。
+ *
+ * Input (Props):
+ *   - progress (Object): 進度物件，包含 current (百分比), stage (階段名稱), description (階段描述)。
+ *
+ * Output:
+ *   - 渲染一個包含進度百分比、進度條和當前階段描述的 UI 元件。
  */
 function ConversationProgress({ progress }) {
-  const getStageLabel = (stage) => {
-    const stages = {
-      greeting: '問候',
-      assessment: '評估',
-      clarification: '澄清',
-      summary: '總結',
-      complete: '完成'
-    };
-    return stages[stage] || stage;
-  };
-
-  const getStageColor = (stage) => {
-    const colors = {
-      greeting: 'stage-greeting',
-      assessment: 'stage-assessment',
-      clarification: 'stage-clarification',
-      summary: 'stage-summary',
-      complete: 'stage-complete'
-    };
-    return colors[stage] || 'stage-greeting';
-  };
+  const currentProgress = progress?.current || 0;
+  const currentDescription = progress?.description || '正在初始化...';
 
   return (
-    <div className="conversation-progress">
-      <div className="progress-info">
-        <span className={`progress-stage ${getStageColor(progress?.stage)}`}>
-          {getStageLabel(progress?.stage)}
-        </span>
-        <span className="progress-percentage">{progress?.current || 0}%</span>
+    <div className="space-y-2">
+      <div className="flex justify-between items-center text-sm font-medium">
+        <span className="text-muted-foreground">{currentDescription}</span>
+        <span className="font-bold text-primary">{currentProgress}%</span>
       </div>
-
-      <div className="progress-bar-container">
+      <div className="w-full bg-muted rounded-full h-2.5">
         <div
-          className="progress-bar"
-          style={{ width: `${progress?.current || 0}%` }}
-        >
-          <div className="progress-shimmer"></div>
-        </div>
+          className="bg-primary h-2.5 rounded-full transition-all duration-500 ease-out"
+          style={{ width: `${currentProgress}%` }}
+        ></div>
       </div>
-
-      <p className="progress-description">{progress?.description}</p>
     </div>
   );
 }

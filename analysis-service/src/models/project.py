@@ -125,6 +125,7 @@ class Booking(BaseModel):
     project_id: str
     name: str
     contact: str
+    region: Optional[str] = None # 新增 region 欄位
     booked_at: datetime = Field(default_factory=datetime.utcnow)
 
 class Project(BaseModel):

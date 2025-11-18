@@ -68,7 +68,7 @@ mcp__gcloud.run_cmd({
     "command": [
         "gcloud", "beta", "builds", "triggers", "create", "github",
         "--name=interior-ai-deploy",
-        "--repo-name=Nooko_Your_InteriorDeco_Ai",
+        "--repo-name=HouseIQ_Your_InteriorDeco_Ai",
         "--repo-owner=<OWNER>",
         "--branch-pattern=^main$",
         "--build-config=cloudbuild.yaml"

@@ -2,6 +2,27 @@ serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/nooko-ai-develop@${PROJE
 options:
   logging: CLOUD_LOGGING_ONLY
 steps:
+  # Run analysis-service tests
+  - name: 'python:3.11-slim'
+    dir: 'analysis-service' # Run from analysis-service directory
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "--- Debugging Test Step ---"
+        pwd
+        ls -F
+        pip install pytest
+        pip install -r requirements.txt
+        echo "Contents of tests/:"
+        ls -F tests/
+        echo "Running pytest --collect-only:"
+        PYTHONPATH=/workspace/analysis-service/src pytest --collect-only
+        echo "Running full pytest:"
+        PYTHONPATH=/workspace/analysis-service/src pytest -v tests/
+        echo "--- End Debugging ---"
+    id: Run Analysis Service Tests
+
   # Build and push analysis-service Docker image
   - name: 'gcr.io/cloud-builders/docker'
     args:
@@ -30,12 +51,9 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      - '--service-account'
-      - 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
-      - '--set-env-vars'
-      - 'PROJECT_ID=${PROJECT_ID},DB_BACKEND=firestore'
-      - '--set-secrets'
-      - 'GEMINI_API_KEY=gemini-api-key:latest'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--set-env-vars=PROJECT_ID=${PROJECT_ID},DB_BACKEND=firestore,PYTHONDONTWRITEBYTECODE=1,GEMINI_BACKEND=api' # Add PYTHONDONTWRITEBYTECODE
+      # Removed --set-secrets GEMINI_API_KEY as secret_service reads directly from Secret Manager
     id: Deploy Analysis Service to Cloud Run
 
   # Get the deployed analysis-service URL
@@ -84,9 +102,38 @@ steps:
       - '--platform'
       - 'managed'
       - '--allow-unauthenticated'
-      - '--service-account'
-      - 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
     id: Deploy Web Service to Cloud Run
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Create Pub/Sub Topic'
+    entrypoint: 'bash'
+    args: ['-c', 'gcloud pubsub topics create quote-analysis-requests --project=${PROJECT_ID} || true']
+    waitFor: ['Deploy Web Service to Cloud Run']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy Background Processor Function'
+    entrypoint: 'gcloud'
+    args:
+      - 'functions'
+      - 'deploy'
+      - 'background-quote-processor'
+      - '--source=./background-processor'
+      - '--runtime=python311'
+      - '--trigger-topic=quote-analysis-requests'
+      - '--entry-point=process_quote'
+      - '--region=${_REGION}'
+      - '--project=${PROJECT_ID}'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--allow-unauthenticated'
+
+# IAM Permissions Reminder:
+# The service account 'serviceAccount: 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'' used by Cloud Run and Cloud Functions
+# needs the following roles:
+# - Secret Manager Secret Accessor (for GEMINI_API_KEY and IMAGEN_API_KEY accessed by secret_service)
+# - Storage Object Viewer (for downloading files in background-processor)
+# - Datastore User (for Firestore access in analysis-service and background-processor)
+# - Cloud Vision API User (for OCR in background-processor)
 
 substitutions:
   _TAG_NAME: 'latest' # Default tag name, can be overridden

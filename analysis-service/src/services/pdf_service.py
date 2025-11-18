@@ -22,7 +22,7 @@ def generate_pdf_report(analysis_data: dict) -> bytes:
         styles = getSampleStyleSheet()
 
         story = []
-        story.append(Paragraph("Nooko 裝潢 AI 夥伴 - 您的專屬藍圖", styles["h1"]))
+        story.append(Paragraph("HouseIQ 裝潢 AI 夥伴 - 您的專屬藍圖", styles["h1"]))
         story.append(Spacer(1, 12))
 
         summary = analysis_data.get("questionnaire_summary", "無摘要")
@@ -48,7 +48,7 @@ def generate_pdf_report(analysis_data: dict) -> bytes:
     spec = analysis_data.get("construction_spec", {})
 
     content_lines = [
-        "Nooko 裝潢 AI 夥伴 - 您的專屬藍圖",
+        "HouseIQ 裝潢 AI 夥伴 - 您的專屬藍圖",
         "==============================",
         "需求摘要:",
         summary,

@@ -22,10 +22,10 @@ This MCP server exposes a `project_search` tool that helps any AI assistant quic
     "project_search": {
       "command": "python3",
       "args": [
-        "/Users/stephen/Desktop/Nooko_Your_InteriorDeco_Ai/tools/project_search/mcp_server.py"
+        "/Users/stephen/Desktop/HouseIQ_Your_InteriorDeco_Ai/tools/project_search/mcp_server.py"
       ],
       "env": {
-        "PROJECT_SEARCH_ROOT": "/Users/stephen/Desktop/Nooko_Your_InteriorDeco_Ai"
+        "PROJECT_SEARCH_ROOT": "/Users/stephen/Desktop/HouseIQ_Your_InteriorDeco_Ai"
       },
       "disabled": false
     }

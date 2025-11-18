@@ -1,160 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import './FinalResult.css';
+import React, { useState } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { User, FileText } from 'lucide-react';
+import FeedbackFlow from './FeedbackFlow';
+import SpecCard from './results/SpecCard';
+import BudgetCard from './results/BudgetCard';
+import QuoteTable from './results/QuoteTable';
 
-const FinalResult = ({ projectId, apiBaseUrl, projectBrief, onBookingRequest }) => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
+/**
+ * Purpose: Renders the final analysis result in a modern dashboard layout.
+ *          This is a presentational component that receives all data via props.
+ *          It also orchestrates the display of the FeedbackFlow component.
+ *
+ * Input (Props):
+ *   - analysisResult (Object): Contains all the data for the final report, including
+ *     briefing, budget_tradeoffs, and quote.
+ *   - projectId (string): The current project ID.
+ *   - apiBaseUrl (string): The base URL for API calls.
+ *
+ * Output:
+ *   - A dashboard displaying the complete solution package and the FeedbackFlow.
+ */
+const FinalResult = ({ analysisResult, projectId, apiBaseUrl }) => {
+  const [showFeedbackFlow, setShowFeedbackFlow] = useState(false);
 
-  useEffect(() => {
-    if (projectId && apiBaseUrl) {
-      fetchAnalysisResult();
-    }
-  }, [projectId, apiBaseUrl]);
-
-  const fetchAnalysisResult = async () => {
-    try {
-      setLoading(true);
-      // 從後端 /analysis-result 取得多 Agent 的成果（input: projectId, output: quote/rendering_summary）
-      const response = await fetch(`${apiBaseUrl}/projects/${projectId}/analysis-result`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setAnalysisResult(data);
-        setError(null);
-      } else {
-        setError('無法載入分析結果');
-      }
-    } catch (err) {
-      console.error('Error fetching analysis result:', err);
-      setError('載入分析結果時發生錯誤');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('zh-TW', {
-      style: 'currency',
-      currency: 'TWD',
-      minimumFractionDigits: 0
-    }).format(amount);
-  };
-
-  if (loading) {
+  if (!analysisResult) {
     return (
-      <div className="final-result-container loading">
-        <div className="loading-spinner"></div>
-        <p>正在生成您的專屬分析結果...</p>
-      </div>
-    );
-  }
-
-  if (error || !analysisResult) {
-    return (
-      <div className="final-result-container error">
-        <div className="error-message">
-          <p>⚠️ {error || '無法載入分析結果'}</p>
-          <button onClick={fetchAnalysisResult} className="retry-button">重新試試</button>
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">正在生成您的專屬分析結果...</h2>
+          <p className="text-muted-foreground">請稍候，AI 正在為您整合最終報告。</p>
         </div>
       </div>
     );
   }
 
-  const { rendering_url, quote, summary } = analysisResult;
+  const { briefing, budget_tradeoffs, quote, summary } = analysisResult;
 
   return (
-    <div className="final-result-container">
-      {/* 概念渲染圖區塊 */}
-      <div className="result-section rendering-section">
-        <h3 className="section-title">
-          <span className="section-icon">🎨</span>
-          您的專屬設計概念
-        </h3>
-        {rendering_url && (
-          <div className="rendering-container">
-            <img
-              src={rendering_url}
-              alt="Final Concept Rendering"
-              className="rendering-image"
-            />
-          </div>
-        )}
-        {summary && (
-          <div className="summary-box">
-            <p className="summary-text">{summary}</p>
-          </div>
-        )}
-      </div>
+    <div className="min-h-screen bg-background text-foreground p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto">
+        <header className="mb-8">
+          <h1 className="text-4xl font-bold tracking-tight">您的專屬設計方案</h1>
+          <p className="text-lg text-muted-foreground mt-2">{summary}</p>
+        </header>
 
-      {/* 報價單區塊 */}
-      <div className="result-section quote-section">
-        <h3 className="section-title">
-          <span className="section-icon">📋</span>
-          詳細規格報價單
-        </h3>
-        <p className="section-description">
-          根據您的需求和我們的專業分析，為您整理的詳細報價
-        </p>
-
-        {quote && quote.line_items && (
-          <div className="quote-table-wrapper">
-            <table className="quote-table">
-              <thead>
-                <tr>
-                  <th>項目</th>
-                  <th>規格</th>
-                  <th>數量</th>
-                  <th>單價</th>
-                  <th>總價</th>
-                </tr>
-              </thead>
-              <tbody>
-                {quote.line_items.map((item, index) => (
-                  <tr key={index} className={item.is_suggestion ? 'suggestion-row' : ''}>
-                    <td className="item-name">
-                      {item.item_name}
-                      {item.is_suggestion && <span className="suggestion-badge">AI 建議</span>}
-                    </td>
-                    <td className="item-spec">{item.spec}</td>
-                    <td className="item-quantity">{item.quantity} {item.unit}</td>
-                    <td className="item-unit-price">{formatCurrency(item.unit_price)}</td>
-                    <td className="item-total-price">{formatCurrency(item.total_price)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="total-row">
-                  <td colSpan="4">報價總計</td>
-                  <td className="total-amount">{formatCurrency(quote.total_price)}</td>
-                </tr>
-              </tfoot>
-            </table>
+        <main className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Column */}
+          <div className="lg:col-span-2 space-y-6">
+            {quote && <QuoteTable quoteData={quote} />}
           </div>
-        )}
-      </div>
 
-      {/* CTA 按鈕 */}
-      <div className="result-actions">
-        <button
-          className="booking-button"
-          onClick={onBookingRequest}
-        >
-          <span className="button-icon">📞</span>
-          預約免費丈量
-        </button>
-        <button
-          className="download-button"
-          onClick={() => window.print()}
-        >
-          <span className="button-icon">📥</span>
-          下載報告
-        </button>
+          {/* Right Column */}
+          <div className="space-y-6">
+            {briefing && <SpecCard brief={briefing} />}
+            {budget_tradeoffs && <BudgetCard tradeoffs={budget_tradeoffs} />}
+            
+            {!showFeedbackFlow && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>準備好開始了嗎？</CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  <Button size="lg" onClick={() => setShowFeedbackFlow(true)}>
+                    <User className="mr-2 h-5 w-5" /> 提供回饋與預約丈量
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => window.print()}>
+                    <FileText className="mr-2 h-5 w-5" /> 下載或列印報告
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+            
+            {showFeedbackFlow && (
+              <FeedbackFlow 
+                projectId={projectId} 
+                apiBaseUrl={apiBaseUrl} 
+                onFeedbackSubmitted={() => console.log("Feedback submitted!")}
+                onBookingSubmitted={() => console.log("Booking submitted!")}
+              />
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );
