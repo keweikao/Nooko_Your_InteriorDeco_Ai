@@ -41,7 +41,7 @@ class GeminiLLMService:
             project_id = os.getenv("PROJECT_ID", "nooko-yourinteriordeco-ai")
             location = os.getenv("VERTEX_LOCATION", "us-central1")
             self.client = genai.Client(vertexai=True, project=project_id, location=location)
-            self.model_name = "gemini-1.5-flash"
+            self.model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-002")
             self.enabled = True
             logger.info(f"✓ Google Gen AI SDK initialized successfully with Vertex AI backend (project={project_id}, location={location}, model={self.model_name})")
         except Exception as e:
