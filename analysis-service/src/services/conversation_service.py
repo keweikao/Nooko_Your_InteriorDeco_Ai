@@ -71,16 +71,17 @@ class ConversationService:
         ).limit(limit)
 
         docs = messages_ref.stream()
-        return [
-            {
+        messages: List[Dict[str, Any]] = []
+        async for doc in docs:
+            data = doc.to_dict() or {}
+            messages.append({
                 "id": doc.id,
-                "sender": doc.get("sender"),
-                "content": doc.get("content"),
-                "timestamp": doc.get("timestamp"),
-                "metadata": doc.get("metadata", {})
-            }
-            async for doc in docs
-        ]
+                "sender": data.get("sender"),
+                "content": data.get("content"),
+                "timestamp": data.get("timestamp"),
+                "metadata": data.get("metadata", {})
+            })
+        return messages
 
     async def update_extracted_specs(
         self,

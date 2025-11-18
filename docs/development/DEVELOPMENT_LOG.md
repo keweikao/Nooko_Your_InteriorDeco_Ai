@@ -58,3 +58,6 @@
 [2025-11-18 18:45:00] - 將 `cloudbuild.yaml` 的 Cloud Run 部署環境變數加入 `GEMINI_BACKEND=api`，確保 analysis-service 在部署後會直接使用 Secret Manager 中的 API Key 連線 Gemini。
 [2025-11-18 18:45:09] - Refactored gemini_service.py to use Vertex AI directly, simplifying initialization and improving error handling.
 [2025-11-18 19:18:00] - 補上 `analysis-service/src/api/projects.py` 的 `import re`，解決 Cloud Run SSE 流程中 `name 're' is not defined` 導致回覆失敗的問題。
+[2025-11-18 19:35:00] - 將預設模型切換為 `gemini-2.5-flash-lite` 並在 `cloudbuild.yaml` 注入 `GEMINI_MODEL_NAME`，同時更新 `tools/test_vertex.py` 以反映最新模型。
+[2025-11-18 19:50:00] - 將 `analysis-service/src/services/gemini_service.py` 改回純 API Key 初始化（`genai.Client(api_key=...)`），完全移除 Vertex 依賴以避免再次出現 `genai.configure` 錯誤。
+[2025-11-18 20:57:22] - Feat: Integrated a new state-aware dynamic prompt system into GeminiLLMService based on the detailed user-provided prompt. The system now follows a five-stage conversational flow to guide users through quote analysis.

@@ -7,42 +7,35 @@ from typing import Dict, Any, List, Tuple
 
 @dataclass(frozen=True)
 class SpecField:
+    """Represents a stage in the conversational flow that needs to be completed."""
     field_id: str
     label: str
+    # 'category' and 'priority' can be used to group and order the stages.
     category: str
+    priority: int
+    # All stages are required by default in this new flow.
     required: bool = True
-    min_confidence: float = 0.75
-    priority: int = 3
+    # Confidence will be manually set to 1.0 when a stage is deemed complete.
+    min_confidence: float = 0.95
 
 
+# New SPEC_FIELDS based on the 5-stage conversational flow
 SPEC_FIELDS: List[SpecField] = [
-    SpecField("user_name", "稱呼", "greeting", required=True, min_confidence=0.6, priority=1),
-    SpecField("project_type", "裝修範圍", "scope", required=True, priority=0),
-    SpecField("focus_areas", "重點空間", "scope"),
-    SpecField("total_area", "坪數/面積", "scope"),
-    SpecField("space_usage", "空間用途", "lifestyle"),
-    SpecField("house_condition", "屋況/年齡", "lifestyle"),
-    SpecField("family_profile", "家庭成員", "lifestyle", required=False, min_confidence=0.5),
-    SpecField("budget_range", "預算區間", "budget", priority=0),
-    SpecField("budget_scope", "預算是否含家電/家具", "budget", required=False, min_confidence=0.6),
-    SpecField("timeline", "時程壓力", "timeline"),
-    SpecField("priority", "品質/外觀/預算優先順序", "timeline", required=False),
-    SpecField("style_preference", "風格偏好", "style"),
-    SpecField("lighting_storage", "照明/收納需求", "style", required=False),
-    SpecField("material_preference", "材料偏好", "style", required=False),
-    SpecField("quality_level", "品質等級", "style", required=False),
-    SpecField("special_requirements", "特殊需求/限制", "construction", required=False, min_confidence=0.5),
-    SpecField("risk_flags", "疑似風險", "construction", required=False, min_confidence=0.4),
+    SpecField("stage_1_situation_purpose", "釐清屋況與使用目的", "collection", priority=1),
+    SpecField("stage_2_scope_condition", "釐清施工範圍與現況", "collection", priority=2),
+    SpecField("stage_3_material_style", "釐清材質與風格偏好", "collection", priority=3),
+    SpecField("stage_4_hidden_risks", "釐清隱藏工程與風險", "collection", priority=4),
+    SpecField("stage_5_budget_decision", "確認預算感與決策方式", "collection", priority=5),
 ]
 
-
+# New STAGE_THRESHOLDS to reflect the progress through the 5 stages
 STAGE_THRESHOLDS: List[Tuple[str, int]] = [
-    ("greeting", 0),
-    ("scope", 20),
-    ("lifestyle", 40),
-    ("budget", 60),
-    ("construction", 80),
-    ("summary", 100),
+    ("start", 0),
+    ("situation_purpose", 20),  # After stage 1 is complete (1/5)
+    ("scope_condition", 40),   # After stage 2 is complete (2/5)
+    ("material_style", 60),    # After stage 3 is complete (3/5)
+    ("hidden_risks", 80),      # After stage 4 is complete (4/5)
+    ("summary", 100),          # After stage 5 is complete (5/5)
 ]
 
 
@@ -71,22 +64,16 @@ class SpecTracker:
         Output: dict 包含更新後 state、progress、stage、missing_fields。
         """
         state = dict(state or {})
-        payload = {k: v for k, v in incoming.items() if k != "confidence_scores"}
-        confidence_scores = incoming.get("confidence_scores", {})
+        # In the new logic, 'incoming' will contain stage completion flags, e.g., {"stage_1_situation_purpose": true}
+        payload = {k: v for k, v in incoming.items() if k in self.field_lookup}
         changed = False
 
         for field_id, value in payload.items():
-            if field_id not in self.field_lookup:
-                continue  # 非追蹤欄位
-            if value in (None, "", []):
-                continue
-
-            confidence = confidence_scores.get(field_id, 0.6)
-            previous = state.get(field_id, {})
-            if confidence >= previous.get("confidence", 0):
+            # If the incoming value is truthy, it means the stage is complete.
+            if value and not self._is_field_satisfied(state.get(field_id), self.field_lookup[field_id]):
                 state[field_id] = {
-                    "value": value,
-                    "confidence": confidence,
+                    "value": "completed", # Store a simple marker
+                    "confidence": 1.0,    # Mark with full confidence
                     "updated_at": datetime.utcnow().replace(tzinfo=timezone.utc).isoformat(),
                 }
                 changed = True
@@ -138,10 +125,12 @@ class SpecTracker:
                     "priority": field.priority,
                     "minConfidence": field.min_confidence,
                 })
-        return sorted(missing, key=lambda item: (item["priority"], item["label"]))
+        # Return the next stage to be completed
+        return sorted(missing, key=lambda item: item["priority"])
 
     @staticmethod
     def _is_field_satisfied(entry: Dict[str, Any] | None, field: SpecField) -> bool:
         if not entry:
             return False
+        # Check for a confidence score that meets the minimum requirement
         return entry.get("confidence", 0.0) >= field.min_confidence

@@ -5,7 +5,7 @@ from google.genai import types
 
 project_id = os.getenv("PROJECT_ID", "nooko-yourinteriordeco-ai")
 location = os.getenv("VERTEX_LOCATION", "us-central1")
-model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-flash-002")
+model_name = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash-lite")
 preferred_backend = os.getenv("GEMINI_BACKEND", "auto").lower()
 api_key = os.getenv("GEMINI_API_KEY")
 
