@@ -1,5 +1,140 @@
+serviceAccount: 'projects/${PROJECT_ID}/serviceAccounts/nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+options:
+  logging: CLOUD_LOGGING_ONLY
 steps:
-- name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'asia-east1-docker.pkg.dev/sales-ai-automation-v2/sales-ai-automation-v2/transcription-service:latest', '-f', 'src/transcription/Dockerfile', '.']
-images:
-- 'asia-east1-docker.pkg.dev/sales-ai-automation-v2/sales-ai-automation-v2/transcription-service:latest'
+  # Run analysis-service tests
+  - name: 'python:3.11-slim'
+    dir: 'analysis-service' # Run from analysis-service directory
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        echo "--- Debugging Test Step ---"
+        pwd
+        ls -F
+        pip install pytest
+        pip install -r requirements.txt
+        echo "Contents of tests/:"
+        ls -F tests/
+        echo "Running pytest --collect-only:"
+        PYTHONPATH=/workspace/analysis-service/src pytest --collect-only
+        echo "Running full pytest:"
+        PYTHONPATH=/workspace/analysis-service/src pytest -v tests/
+        echo "--- End Debugging ---"
+    id: Run Analysis Service Tests
+
+  # Build and push analysis-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+      - './analysis-service'
+    id: Build Analysis Service Image
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+    id: Push Analysis Service Image
+
+  # Deploy analysis-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'analysis-service'
+      - '--image'
+      - 'gcr.io/${PROJECT_ID}/analysis-service:${_TAG_NAME}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--set-env-vars=PROJECT_ID=${PROJECT_ID},DB_BACKEND=firestore,PYTHONDONTWRITEBYTECODE=1,GEMINI_BACKEND=api' # Add PYTHONDONTWRITEBYTECODE
+      # Removed --set-secrets GEMINI_API_KEY as secret_service reads directly from Secret Manager
+    id: Deploy Analysis Service to Cloud Run
+
+  # Get the deployed analysis-service URL
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        gcloud run services describe analysis-service \
+          --region=${_REGION} \
+          --format='value(status.url)' > /workspace/analysis_service_url.txt
+        echo "Analysis Service URL: $(cat /workspace/analysis_service_url.txt)"
+    id: Get Analysis Service URL
+
+  # Build and push web-service Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        ANALYSIS_URL=$(cat /workspace/analysis_service_url.txt)
+        echo "Building web-service with API URL: $${ANALYSIS_URL}/api"
+        docker build \
+          -t gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME} \
+          --build-arg VITE_APP_API_BASE_URL=$${ANALYSIS_URL}/api \
+          --build-arg VITE_ENABLE_UI_SHOWCASE=false \
+          /workspace/web-service
+    id: Build Web Service Image
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME}'
+    id: Push Web Service Image
+
+  # Deploy web-service to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'web-service'
+      - '--image'
+      - 'gcr.io/${PROJECT_ID}/web-service:${_TAG_NAME}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+    id: Deploy Web Service to Cloud Run
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Create Pub/Sub Topic'
+    entrypoint: 'bash'
+    args: ['-c', 'gcloud pubsub topics create quote-analysis-requests --project=${PROJECT_ID} || true']
+    waitFor: ['Deploy Web Service to Cloud Run']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy Background Processor Function'
+    entrypoint: 'gcloud'
+    args:
+      - 'functions'
+      - 'deploy'
+      - 'background-quote-processor'
+      - '--source=./background-processor'
+      - '--runtime=python311'
+      - '--trigger-topic=quote-analysis-requests'
+      - '--entry-point=process_quote'
+      - '--region=${_REGION}'
+      - '--project=${PROJECT_ID}'
+      - '--service-account=nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'
+      - '--allow-unauthenticated'
+
+# IAM Permissions Reminder:
+# The service account 'serviceAccount: 'nooko-ai-develop@${PROJECT_ID}.iam.gserviceaccount.com'' used by Cloud Run and Cloud Functions
+# needs the following roles:
+# - Secret Manager Secret Accessor (for GEMINI_API_KEY and IMAGEN_API_KEY accessed by secret_service)
+# - Storage Object Viewer (for downloading files in background-processor)
+# - Datastore User (for Firestore access in analysis-service and background-processor)
+# - Cloud Vision API User (for OCR in background-processor)
+
+substitutions:
+  _TAG_NAME: 'latest' # Default tag name, can be overridden
+  _REGION: 'asia-east1' # Default region, can be overridden

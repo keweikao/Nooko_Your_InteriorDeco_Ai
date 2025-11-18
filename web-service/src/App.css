@@ -1,0 +1,385 @@
+/* Global Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', sans-serif; /* Use Inter directly */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+}
+
+.App {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header Styles */
+.App-header {
+  background: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  padding: var(--spacing-2xl) var(--spacing-md);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.App-header::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, hsla(var(--color-brand-white), 0.1) 0%, transparent 70%); /* Use HouseIQ White with transparency */
+  animation: shimmer 8s infinite;
+}
+
+@keyframes shimmer {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(20px, 20px); }
+}
+
+.header-content {
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+
+.App-header h1 {
+  font-family: 'Playfair Display', serif; /* Use Playfair Display */
+  font-size: var(--fs-3xl);
+  font-weight: 700;
+  margin-bottom: var(--spacing-sm);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.App-header p {
+  font-size: var(--fs-lg);
+  opacity: 0.95;
+  font-weight: 300;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  justify-content: center;
+  margin-top: var(--spacing-lg);
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  width: 100%;
+}
+
+/* Welcome Section */
+.welcome-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 500px;
+}
+
+.welcome-card {
+  background: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  border-radius: 16px;
+  padding: var(--spacing-3xl);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  max-width: 700px;
+  text-align: center;
+  animation: slideUp 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid hsla(var(--color-brand-charcoal), 0.1); /* Use HouseIQ Charcoal with transparency */
+  position: relative;
+  overflow: hidden;
+}
+
+.welcome-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, hsl(var(--color-brand-terracotta)), transparent); /* Use HouseIQ Terracotta */
+  animation: gradientShine 3s infinite;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes gradientShine {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.welcome-card h2 {
+  font-family: 'Playfair Display', serif; /* Use Playfair Display */
+  font-size: var(--fs-3xl);
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  margin-bottom: var(--spacing-lg);
+  background: linear-gradient(135deg, hsl(var(--color-brand-terracotta)), hsl(var(--color-brand-charcoal))); /* Use HouseIQ Terracotta and Charcoal */
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.welcome-intro {
+  font-size: var(--fs-base);
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  line-height: 1.6;
+  margin-bottom: var(--spacing-xl);
+}
+
+.features-list {
+  text-align: left;
+  list-style: none;
+  margin: var(--spacing-2xl) 0;
+  padding: 0;
+}
+
+.features-list li {
+  font-size: var(--fs-base);
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  margin: var(--spacing-md) 0;
+  padding-left: var(--spacing-3xl);
+  position: relative;
+  line-height: 1.5;
+  transition: transform var(--transition-normal) var(--easing-ease-out);
+}
+
+.features-list li:hover {
+  transform: translateX(8px);
+}
+
+.features-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--spacing-lg);
+  height: var(--spacing-lg);
+  background-color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  font-weight: bold;
+  font-size: 12px;
+  animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes popIn {
+  0% { transform: translateY(-50%) scale(0); }
+  100% { transform: translateY(-50%) scale(1); }
+}
+
+.welcome-actions {
+  margin-top: var(--spacing-2xl);
+}
+
+.primary-button {
+  padding: var(--spacing-md) var(--spacing-2xl);
+  background: hsl(var(--color-brand-terracotta)); /* Use Nooko Terracotta */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  border: none;
+  border-radius: 30px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal) var(--easing-ease-out);
+  box-shadow: 0 4px 15px hsla(var(--color-brand-terracotta), 0.4); /* Use HouseIQ Terracotta with transparency */
+  position: relative;
+  overflow: hidden;
+}
+
+.primary-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: hsla(var(--color-brand-white), 0.3); /* Use HouseIQ White with transparency */
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width var(--transition-normal), height var(--transition-normal);
+}
+
+.primary-button:hover:not(:disabled)::before {
+  width: 300px;
+  height: 300px;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px hsla(var(--color-brand-terracotta), 0.6); /* Use HouseIQ Terracotta with transparency */
+}
+
+.primary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.primary-button:disabled {
+  background: hsl(var(--color-border-light));
+  cursor: not-allowed;
+  box-shadow: none;
+  color: hsl(var(--color-text-secondary));
+}
+
+.project-id-info {
+  margin-top: 20px;
+  font-size: 12px;
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+}
+
+/* Section Styles */
+.upload-section,
+.questionnaire-section,
+.results-section,
+.booking-section {
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.section-card {
+  background: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  border-radius: 12px;
+  padding: 40px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.step-indicator {
+  display: inline-block;
+  padding: 6px 16px;
+  background-color: hsla(var(--color-brand-terracotta), 0.1); /* Use HouseIQ Terracotta with transparency */
+  color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+.section-card h2,
+.section-header h2 {
+  font-family: 'Playfair Display', serif; /* Use Playfair Display */
+  font-size: 28px;
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  margin-bottom: 15px;
+}
+
+.section-description {
+  font-size: 16px;
+  color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  line-height: 1.6;
+  margin-bottom: 25px;
+}
+
+.skip-action {
+  text-align: center;
+  margin-top: 25px;
+}
+
+.text-button {
+  background: none;
+  border: none;
+  color: hsl(var(--color-brand-terracotta)); /* Use HouseIQ Terracotta */
+  font-size: 15px;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+
+.text-button:hover {
+  color: hsla(var(--color-brand-terracotta), 0.8); /* Use HouseIQ Terracotta with transparency */
+}
+
+/* Footer */
+.app-footer {
+  background-color: hsl(var(--color-brand-charcoal)); /* Use HouseIQ Charcoal */
+  color: hsl(var(--color-brand-white)); /* Use HouseIQ White */
+  text-align: center;
+  padding: 20px;
+  margin-top: auto;
+}
+
+.app-footer p {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .App-header h1 {
+    font-size: 28px;
+  }
+
+  .App-header p {
+    font-size: 16px;
+  }
+
+  .main-content {
+    padding: 20px 15px;
+  }
+
+  .welcome-card {
+    padding: 30px 20px;
+  }
+
+  .welcome-card h2 {
+    font-size: 24px;
+  }
+
+  .section-card {
+    padding: 25px 20px;
+  }
+
+  .section-card h2,
+  .section-header h2 {
+    font-size: 24px;
+  }
+
+  .primary-button {
+    font-size: 16px;
+    padding: 14px 32px;
+  }
+}

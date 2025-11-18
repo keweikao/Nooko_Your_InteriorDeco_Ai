@@ -1,26 +1,25 @@
-
 # Use an official Python runtime as a parent image
-FROM python:3.10-slim
-
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app
 
-# Copy the requirements file and install dependencies
-COPY analysis-service/requirements.txt .
+ENV PYTHONPATH=/app/src
+
+# Copy the dependencies file to the working directory
+COPY requirements.txt .
+
+# Install any needed dependencies specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application source code
-COPY analysis-service/src/ ./src
+# Copy the content of the local src directory to the working directory
+COPY src/ ./src/
 
-# Set PYTHONPATH to include the app directory
-ENV PYTHONPATH "${PYTHONPATH}:/app"
-
-# Make port 8080 available to the world outside this container
+# Make port 8000 available to the world outside this container
 EXPOSE 8080
 
-# Define environment variable for the port
-ENV PORT 8080
+# Define environment variable
+ENV NAME World
 
-# Run the app as a module with increased timeout for long-running analysis
-CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:8080", "--timeout", "600", "src.main:flask_app"]
+# Run uvicorn when the container launches
+CMD uvicorn src.main:app --host 0.0.0.0 --port ${PORT}

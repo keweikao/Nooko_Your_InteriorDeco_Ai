@@ -14,16 +14,10 @@
 
 | 服務 / 用途 | Secret Manager 名稱 | 環境變數 / 檔案 | 用途說明 |
 |-------------|---------------------|------------------|----------|
-| Slack Bot Token | `slack-bot-token` | `SLACK_BOT_TOKEN` | Slack 機器人 API 呼叫 |
-| Slack Signing Secret | `slack-signing-secret` | `SLACK_SIGNING_SECRET` | Events API 驗證簽章 |
-| Slack App Token (Socket Mode) | `slack-app-token` | `SLACK_APP_TOKEN` | Socket Mode 連線（若啟用） |
-| Gemini API Key | `gemini-api-key` | `GEMINI_API_KEY` | Google Generative AI 呼叫 |
-| GCP Service Account (JSON) | `sales-ai-service-account` | `GOOGLE_APPLICATION_CREDENTIALS` 指向下載檔 | Firestore / Storage / Tasks 權限 |
-| Hugging Face Token | `huggingface-token` | `HUGGINGFACE_TOKEN` | Whisper 說話者辨識模型下載 |
-| Twilio Account SID | `twilio-account-sid` | `TWILIO_ACCOUNT_SID` | SMS 通知 |
-| Twilio Auth Token | `twilio-auth-token` | `TWILIO_AUTH_TOKEN` | SMS 通知 |
-| Firestore 管理員清單 | `manager-slack-ids` | 匯出 JSON 供初始化 | Agent 8 主管權限設定 |
-| Cloud Tasks OIDC Signing Key | `cloud-tasks-service-account` | 供部署腳本使用 | Cloud Tasks 呼叫後端驗證（若啟用） |
+| GCP Service Account (JSON) | `houseiq-ai-service-account` | `GOOGLE_APPLICATION_CREDENTIALS` 指向下載檔 | Cloud Build、Cloud Run、Firestore/Storage/Tasks 權限。部署時可直接指定服務帳號或掛載 JSON。 |
+| Gemini API Key | `gemini-api-key` | `GEMINI_API_KEY` | `mcp__gcp_ai` / Vertex AI 呼叫（當 LLM 從 mock 切換為真正的 Gemini/Imagen 時使用）。 |
+
+> 目前專案只會使用上述兩個 Secret。若將來導入新的外部服務（如 Slack、Twilio 等），再依需求擴充表格。
 
 > 如需新增其他 Secret，請更新此表格並於 `DEVELOPMENT_LOG.md` 記錄。
 
@@ -34,7 +28,7 @@
 ### 1. 使用 Secret Manager CLI
 
 ```bash
-gcloud secrets versions access latest --secret=slack-bot-token
+gcloud secrets versions access latest --secret=houseiq-ai-service-account > /tmp/sa.json
 gcloud secrets versions access latest --secret=gemini-api-key
 ```
 
@@ -46,10 +40,8 @@ gcloud secrets versions access latest --secret=gemini-api-key
 2. 依照下列指令填入各項：
 
 ```bash
-echo "SLACK_BOT_TOKEN=$(gcloud secrets versions access latest --secret=slack-bot-token)" >> .env
-echo "SLACK_SIGNING_SECRET=$(gcloud secrets versions access latest --secret=slack-signing-secret)" >> .env
 echo "GEMINI_API_KEY=$(gcloud secrets versions access latest --secret=gemini-api-key)" >> .env
-echo "HUGGINGFACE_TOKEN=$(gcloud secrets versions access latest --secret=huggingface-token)" >> .env
+echo "GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/sa.json" >> .env
 ```
 
 3. 將 `.env` 加入 shell session：`export $(grep -v '^#' .env | xargs)`
@@ -58,8 +50,8 @@ echo "HUGGINGFACE_TOKEN=$(gcloud secrets versions access latest --secret=hugging
 
 ### 3. Cloud Run / Cloud Functions
 
-- 部署前以 `gcloud run services update` 或 Terraform 將 Secret 掛載為環境變數。
-- 核對 `docs/agent8-phase1-deployment.md` 等部署文件，確保 `--set-secrets` 或 `--update-secrets` 指令使用上述名稱。
+- Cloud Run 建議直接指派具備 `roles/datastore.user` 的服務帳號；若需使用 key 檔，可在 Secret Manager 掛載 JSON 後於部署時加入 `--set-secrets GOOGLE_APPLICATION_CREDENTIALS=houseiq-ai-service-account:latest`。
+- `GEMINI_API_KEY` 僅在 `mcp__gcp_ai` 或後端呼叫 Vertex AI 時需要，沒使用可暫不注入。
 
 ---
 

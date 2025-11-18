@@ -45,6 +45,7 @@ node_modules/
 .claude/
 pretrained_models/
 tmp/
+analysis-service/uploaded_quotes/
 
 # Service account keys (sensitive)
 *service-account*.json
