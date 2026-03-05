@@ -8,11 +8,10 @@
 
 ## 一、技術棧選型（Better-T Stack）
 
-```
+```bash
 bun create better-t-stack@latest nooko-quotation-guardian \
   --runtime bun \
-  --frontend react \
-  --frontend-framework tanstack-router \
+  --frontend tanstack-router \
   --backend hono \
   --api trpc \
   --database postgres \
@@ -53,87 +52,117 @@ bun create better-t-stack@latest nooko-quotation-guardian \
 
 ```
 nooko-quotation-guardian/
+├── .env                               # 環境變數（DB URL, Auth secrets）
+├── package.json                       # Root workspace
+├── tsconfig.json
+├── turbo.json                         # Turborepo 設定
+├── biome.json                         # Biome lint/format 設定
+├── bunfig.toml                        # Bun 設定
+│
 ├── apps/
-│   ├── web/                          # React + TanStack Router 前端
-│   │   ├── src/
-│   │   │   ├── routes/               # File-based routing
-│   │   │   │   ├── __root.tsx
-│   │   │   │   ├── index.tsx                    # Landing / Dashboard
-│   │   │   │   ├── login.tsx
-│   │   │   │   ├── dashboard/
-│   │   │   │   │   ├── index.tsx                # 專案列表
-│   │   │   │   │   └── $projectId/
-│   │   │   │   │       ├── index.tsx            # 專案概覽
-│   │   │   │   │       ├── upload.tsx           # 上傳報價單
-│   │   │   │   │       ├── review.tsx           # 防呆審核結果
-│   │   │   │   │       └── rules.tsx            # 防呆規則管理
-│   │   │   │   └── settings/
-│   │   │   │       ├── index.tsx                # 帳號設定
-│   │   │   │       ├── team.tsx                 # 團隊管理
-│   │   │   │       └── rules.tsx                # 全域規則設定
-│   │   │   ├── components/
-│   │   │   │   ├── quotation/                   # 報價單相關元件
-│   │   │   │   │   ├── QuotationTable.tsx       # 報價單表格（TanStack Table）
-│   │   │   │   │   ├── UploadDropzone.tsx       # 檔案上傳區
-│   │   │   │   │   └── ReviewReport.tsx         # 審核報告卡片
-│   │   │   │   ├── rules/                       # 規則相關元件
-│   │   │   │   │   ├── RuleCard.tsx
-│   │   │   │   │   └── RuleFeedback.tsx         # ✅❌✏️ 回饋按鈕
-│   │   │   │   └── ui/                          # shadcn/ui 元件
-│   │   │   └── lib/
-│   │   │       ├── trpc.ts                      # tRPC client
-│   │   │       └── utils.ts
-│   │   └── package.json
-│   │
-│   └── server/                        # Hono + tRPC 後端
-│       ├── src/
-│       │   ├── index.ts                         # Hono app entry
-│       │   ├── router/                          # tRPC routers
-│       │   │   ├── index.ts                     # Root router
-│       │   │   ├── project.ts                   # 專案 CRUD
-│       │   │   ├── quotation.ts                 # 報價單上傳/解析
-│       │   │   ├── review.ts                    # 防呆審核
-│       │   │   ├── rule.ts                      # 規則 CRUD
-│       │   │   └── feedback.ts                  # 老手回饋
-│       │   ├── services/
-│       │   │   ├── excel-parser.ts              # Excel 報價單解析
-│       │   │   ├── review-engine.ts             # 三大防呆關卡引擎
-│       │   │   ├── rule-engine.ts               # 規則比對引擎
-│       │   │   ├── gemini.ts                    # Gemini AI 推理
-│       │   │   └── quantity-estimator.ts        # 數量合理性估算
-│       │   ├── db/
-│       │   │   ├── schema.ts                    # Drizzle schema
-│       │   │   ├── migrations/                  # DB migrations
-│       │   │   └── seed.ts                      # 種子資料（基礎規則）
-│       │   └── auth/
-│       │       └── index.ts                     # Better-Auth 設定
-│       └── package.json
+│   └── web/                           # React + TanStack Router 前端 (Vite SPA)
+│       ├── package.json
+│       ├── vite.config.ts
+│       ├── index.html
+│       ├── components.json            # shadcn/ui 設定
+│       └── src/
+│           ├── main.tsx
+│           ├── index.css
+│           ├── routes/                # File-based routing (TanStack Router)
+│           │   ├── __root.tsx
+│           │   ├── index.tsx                    # Landing / Dashboard
+│           │   ├── login.tsx                    # Better-Auth 登入頁
+│           │   ├── dashboard.tsx                # Better-Auth 使用者頁
+│           │   ├── projects/
+│           │   │   ├── index.tsx                # 專案列表
+│           │   │   └── $projectId/
+│           │   │       ├── index.tsx            # 專案概覽
+│           │   │       ├── upload.tsx           # 上傳報價單
+│           │   │       ├── review.tsx           # 防呆審核結果
+│           │   │       └── rules.tsx            # 防呆規則管理
+│           │   └── settings/
+│           │       ├── index.tsx                # 帳號設定
+│           │       └── team.tsx                 # 團隊管理
+│           ├── components/
+│           │   ├── quotation/                   # 報價單相關元件
+│           │   │   ├── QuotationTable.tsx       # 報價單表格（TanStack Table）
+│           │   │   ├── UploadDropzone.tsx       # 檔案上傳區
+│           │   │   └── ReviewReport.tsx         # 審核報告卡片
+│           │   ├── rules/                       # 規則相關元件
+│           │   │   ├── RuleCard.tsx
+│           │   │   └── RuleFeedback.tsx         # ✅❌✏️ 回饋按鈕
+│           │   ├── sign-in-form.tsx             # Better-Auth 登入表單
+│           │   ├── sign-up-form.tsx             # Better-Auth 註冊表單
+│           │   ├── user-menu.tsx                # Better-Auth 使用者選單
+│           │   └── ui/                          # shadcn/ui 元件
+│           ├── lib/
+│           │   ├── auth-client.ts               # Better-Auth client
+│           │   └── utils.ts
+│           └── utils/
+│               └── trpc.ts                      # tRPC client setup
+│
+├── server/                            # Hono 後端 (頂層 workspace)
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tsdown.config.ts               # Build 設定
+│   └── src/
+│       ├── index.ts                    # Hono server entry point
+│       └── services/                   # 業務邏輯服務
+│           ├── excel-parser.ts         # Excel 報價單解析
+│           ├── review-engine.ts        # 三大防呆關卡引擎
+│           ├── rule-engine.ts          # 規則比對引擎
+│           ├── gemini.ts               # Gemini AI 推理
+│           └── quantity-estimator.ts   # 數量合理性估算
 │
 ├── packages/
-│   ├── shared/                        # 前後端共用型別
-│   │   ├── src/
-│   │   │   ├── types/
-│   │   │   │   ├── quotation.ts                 # 報價單型別
-│   │   │   │   ├── review.ts                    # 審核結果型別
-│   │   │   │   ├── rule.ts                      # 防呆規則型別
-│   │   │   │   └── site-condition.ts            # 現場條件型別
-│   │   │   └── constants/
-│   │   │       ├── trade-categories.ts          # 工種分類
-│   │   │       └── severity-levels.ts           # 嚴重程度等級
-│   │   └── package.json
+│   ├── api/                           # tRPC Router 定義
+│   │   ├── package.json
+│   │   └── src/
+│   │       ├── index.ts               # tRPC app handler (Hono 整合)
+│   │       ├── context.ts             # tRPC context
+│   │       └── routers/
+│   │           ├── index.ts           # Root router
+│   │           ├── project.ts         # 專案 CRUD
+│   │           ├── quotation.ts       # 報價單上傳/解析
+│   │           ├── review.ts          # 防呆審核
+│   │           ├── rule.ts            # 規則 CRUD
+│   │           └── feedback.ts        # 老手回饋
+│   │
+│   ├── auth/                          # Better-Auth 伺服器設定
+│   │   ├── package.json
+│   │   └── src/
+│   │       └── index.ts               # Auth configuration (Drizzle adapter)
+│   │
+│   ├── db/                            # Drizzle ORM + Schema
+│   │   ├── package.json
+│   │   ├── drizzle.config.ts          # Drizzle config for Postgres
+│   │   └── src/
+│   │       ├── index.ts               # Drizzle client (Neon serverless driver)
+│   │       ├── seed.ts                # 種子資料（基礎防呆規則）
+│   │       └── schema/
+│   │           ├── index.ts           # Schema barrel export
+│   │           ├── auth.ts            # Better-Auth 的 auth tables
+│   │           ├── project.ts         # 專案、現場條件
+│   │           ├── quotation.ts       # 報價單、工項
+│   │           ├── review.ts          # 審核記錄、發現
+│   │           ├── rule.ts            # 防呆規則
+│   │           └── feedback.ts        # 老手回饋
+│   │
+│   ├── env/                           # 環境變數驗證
+│   │   └── src/
+│   │       ├── server.ts
+│   │       └── web.ts
+│   │
+│   ├── config/                        # 共用 TypeScript config
+│   │   └── tsconfig.base.json
 │   │
 │   └── construction-knowledge/        # 工程知識庫（從現有 Python 移植）
-│       ├── src/
-│       │   ├── dependencies.ts                  # 工序相依關係
-│       │   ├── site-constraints.ts              # 現場限制條件
-│       │   ├── quantity-formulas.ts             # 數量計算公式
-│       │   └── trade-mapping.ts                 # 工種對應表
-│       └── package.json
-│
-├── turbo.json
-├── package.json
-├── biome.json
-└── drizzle.config.ts
+│       ├── package.json
+│       └── src/
+│           ├── dependencies.ts        # 工序相依關係
+│           ├── site-constraints.ts    # 現場限制條件
+│           ├── quantity-formulas.ts   # 數量計算公式
+│           └── trade-mapping.ts       # 工種對應表
 ```
 
 ---
