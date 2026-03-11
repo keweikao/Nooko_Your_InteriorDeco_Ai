@@ -1,0 +1,24 @@
+{
+  "name": "@my-better-t-app/auth",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "type": "module",
+  "scripts": {},
+  "devDependencies": {
+    "typescript": "^5",
+    "@my-better-t-app/config": "workspace:*"
+  },
+  "dependencies": {
+    "dotenv": "catalog:",
+    "zod": "catalog:",
+    "@my-better-t-app/env": "workspace:*",
+    "@my-better-t-app/db": "workspace:*",
+    "better-auth": "catalog:"
+  }
+}
