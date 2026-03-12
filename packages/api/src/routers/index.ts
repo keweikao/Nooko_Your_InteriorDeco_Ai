@@ -1,7 +1,12 @@
 import {
-  protectedProcedure, publicProcedure,
+  protectedProcedure,
+  publicProcedure,
   router,
 } from "../index";
+import { quotationRouter } from "./quotation";
+import { itemRouter } from "./items";
+import { rulesRouter } from "./rules";
+import { wbsRouter } from "./wbs";
 
 export const appRouter = router({
   healthCheck: publicProcedure.query(() => {
@@ -13,5 +18,9 @@ export const appRouter = router({
       user: ctx.session.user,
     };
   }),
+  quotation: quotationRouter,
+  item: itemRouter,
+  rules: rulesRouter,
+  wbs: wbsRouter,
 });
 export type AppRouter = typeof appRouter;

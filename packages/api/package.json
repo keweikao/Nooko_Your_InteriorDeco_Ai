@@ -22,6 +22,7 @@
     "@my-better-t-app/auth": "workspace:*",
     "@my-better-t-app/db": "workspace:*",
     "@trpc/server": "catalog:",
-    "@trpc/client": "catalog:"
+    "@trpc/client": "catalog:",
+    "drizzle-orm": "^0.45.1"
   }
 }
