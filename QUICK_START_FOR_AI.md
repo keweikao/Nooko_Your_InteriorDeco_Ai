@@ -1,114 +1,102 @@
-# AI 助理快速上手指南 (v3.0)
+# AI 助理快速上手指南 (v4.0)
 
-**目的**: 讓任何 AI 助理都能快速理解「AI 裝潢顧問」專案的最新方向，並遵循最佳實踐進行開發。
+**目的**: 讓任何 AI 助理都能快速理解「報價防呆守衛」專案的最新方向，並遵循最佳實踐進行開發。
 **閱讀時間**: 3 分鐘
 
 ---
 
-## 🚀 專案速覽 (Project at a Glance)
+## 專案速覽 (Project at a Glance)
 
 - **產品定位 (Positioning)**:
-  一個專業、中立的**「AI 裝潢顧問」**，為已有報價單但充滿疑慮的屋主提供第二意見，解決他們看不懂、怕被坑、擔心漏項的痛點。
+  一個**「裝修報價單防呆助理」**（B2B 工具），為設計公司和統包商在發包前，自動揪出報價單中會導致「現場停工、做錯重來、嚴重漏項」的致命錯誤。
 
 - **核心流程 (Core Flow)**:
-  1.  **分析**: 使用者上傳現有報價單。
-  2.  **互動**: AI 透過引導式對話補全個人化需求。
-  3.  **交付**: 產出包含「工程規格書」、「預算取捨建議」和「概念渲染圖」的解決方案包。
+  1. **輸入**: 使用者填寫現場條件 + 上傳報價單（Excel）
+  2. **審核**: 系統自動執行三大防呆關卡（漏項/衝突/數量異常）
+  3. **報告**: 產出紅黃綠燈防呆報告 + 具體修正建議
+  4. **學習**: 老手透過回饋（確認/否決/調整）持續訓練系統
 
 - **商業目標 (Business Goal)**:
-  透過提供價值和建立信任，最終引導使用者選擇**我們的施工服務**，並承諾以 AI 產出的規格書作為合作基礎。
+  短期內部省錢避險 → 中期包裝為 SaaS 訂閱服務 → 長期建立業界發包標準。
+
+- **目標用戶**: 室內設計公司、小型統包商、工程顧問（B2B）
 
 ---
 
-## 🏛️ 核心架構原則 (Core Architectural Principles)
+## 技術棧 (Tech Stack)
 
-1.  **單一 AI 核心，多重專家人格 (Single AI Core, Multiple Expert Personas)**:
-    - 後端由一個統一、強大的 `gemini_service` 驅動，避免舊版多 Agent 的複雜性。
-    - 透過 Prompt Engineering 指示單一模型模擬不同專家（顧問、統包、設計師）的思維模式，確保對話體驗流暢無中斷。
+**基於 [Better-T Stack](https://www.better-t-stack.dev/) 的 TypeScript 全端架構**
 
-2.  **非同步處理管線 (Asynchronous Processing Pipeline)**:
-    - **上傳與分派**: API 端點 (`/upload`) 只負責快速接收檔案、存入 Google Cloud Storage (GCS) 並觸發背景任務 (via Pub/Sub 或 Cloud Tasks)。
-    - **背景處理**: 由獨立的 Cloud Function 執行耗時的解析工作（OCR、Excel/PDF 讀取），完成後將結果存入 Firestore。
-
-3.  **即時狀態更新 (Real-time State Updates)**:
-    - 前端透過 **Server-Sent Events (SSE)** 與後端建立長連線。
-    - 後端在背景任務的各個階段（如「分析中」、「分析完成」）主動推送狀態給前端，提供流暢的即時體驗。
-
-4.  **Token 管理策略 (Token Management Strategy)**:
-    - 為避免超出模型上下文視窗限制，需實作「滾動式摘要」機制。當對話歷史過長時，自動將舊對話摘要成精簡文本，再與近期對話結合後送入模型。
-
----
-
-## 🎨 UI/UX 風格指南 (UI/UX Style Guide)
-
-- **整體美學 (Aesthetic)**:
-  遵循 "Vakly" 範本的**現代、簡潔、專業**風格。強調大量的留白、置中的內容和整齊的版面。
-
-- **顏色與字體 (Color & Typography)**:
-  - **顏色**: 以中性色（白、灰、黑）為基礎，搭配一個鮮明的品牌主色（如赤陶色 #E2725B）來凸顯按鈕和重點。
-  - **字體**: 全站使用 **Inter** 作為主要字體，透過不同粗細來建立資訊層次感。
-
-- **元件庫 (Component Library)**:
-  - 所有前端互動元件，應優先使用或參考 **MagicUI** 的風格和互動模式來建構。
-  - **元件風格**: 圓角、細緻的邊框或柔和的陰影，以提升精緻感。
+| 層級 | 技術 | 說明 |
+|------|------|------|
+| Runtime | Bun | TypeScript 原生、快速啟動 |
+| Frontend | React + TanStack Router | File-based routing、type-safe |
+| Backend | Hono | 輕量 API 框架 |
+| API Layer | tRPC | 前後端 end-to-end type safety |
+| Database | PostgreSQL (Neon) | Serverless、結構化報價資料 |
+| ORM | Drizzle | Type-safe、SQL-like 語法 |
+| Auth | Better-Auth | 支援 organization（多租戶） |
+| UI | shadcn/ui + Tailwind CSS | 美觀、可客製 |
+| AI | Google Gemini (via @google/genai) | 模糊推理、建議生成 |
+| Monorepo | Turborepo | 管理 web + server + packages |
+| Lint | Biome | 快速 lint + format |
 
 ---
 
-## 核心開發原則 (Core Development Principles)
+## 核心架構原則
 
-1.  **⚠️ 效率優先 (Efficiency First)**
-    - **目標**: 為了節省您的 Token 消耗和成本。
-    - **實踐**: 在讀取檔案 (`read_file`) 前，優先使用更經濟的工具（如 `grep`, `search_file_content`, `ls`）來縮小範圍、確認檔案是否存在或定位關鍵程式碼。避免不必要的全檔案讀取。
+1. **規則引擎優先，AI 輔助**:
+   - 確定性的工序連動、物理限制用「規則引擎」處理
+   - 模糊判斷、建議文字用 Gemini AI 處理
+   - 規則可透過老手回饋持續累積
 
-2.  **✍️ 程式碼註解 (Code Commenting)**
-    - **目標**: 提升程式碼的可讀性與可維護性。
-    - **實踐**: 對於所有主要的函式或類別，必須在定義上方加入註解塊。註解應包含：
-        - **目的 (Purpose)**：簡述該函式/類別的核心職責。
-        - **輸入 (Input)**：說明重要的參數及其來源。
-        - **輸出 (Output)**：說明回傳值的內容和目的地。
+2. **三大防呆關卡**:
+   - **關卡 1 (漏項)**: 工序相依檢查 — 有 A 工項就必須有 B
+   - **關卡 2 (衝突)**: 現場條件 × 建材/工法限制矩陣
+   - **關卡 3 (異常)**: 數量與坪數的經驗比例檢查
 
-3.  **✍️ 即時記錄日誌 (Log as You Go)**
-    - 每完成一個**主要動作** (例如：成功修改一個檔案、從一次探索中獲得結論)，就**必須**立即在 `DEVELOPMENT_LOG.md` 中記錄進度。
-    - **禁止**等到整個任務結束後才一次性補寫日誌。
-
-4.  **🗣️ 統一語言 (Unified Language)**
-    - 所有對使用者的回覆、註解和日誌記錄，一律使用**繁體中文**。
-
-5.  **🚀 標準化提交與部署 (Standardized Commit & Deployment)**
-    - **流程**: `git add` ➜ `git commit` ➜ `git push` ➜ `gcloud builds submit`。
-    - **提交訊息**: 遵循 Conventional Commits 規範 (例如 `feat:`, `fix:`, `docs:`)，清晰描述變更。
-    - **部署指令**: `gcloud builds submit . --config cloudbuild.yaml --project=nooko-yourinteriordeco-ai`。
+3. **回饋迴路驅動成長**:
+   - 老手確認 → 規則權重 +1
+   - 老手否決 → 標記為例外
+   - 老手調整 → 自動新增/修改規則
 
 ---
 
-## 📚 專案上下文快速查閱 (Quick Context Lookup)
+## 專案結構
 
-- **上次進度？** → `DEVELOPMENT_LOG.md`
-- **專案架構？** → `specs/002-interior-deco-ai/plan.md`
-- **功能規格？** → `specs/002-interior-deco-ai/spec.md`
-- **開發任務？** → `specs/002-interior-deco-ai/tasks.md`
-
-> 💡 **GCP Operations MCP Server**：已放在 `tools/gcp_ops/mcp_server.py`，可直接在 MCP 內查詢 Cloud Run/Cloud Build/Logging 狀態。
->  - 設定範例：
->    ```json
->    "gcpOps": {
->      "command": "python",
->      "args": ["tools/gcp_ops/mcp_server.py"]
->    }
->    ```
->  - 可用工具：`cloud_run_describe`、`cloud_builds_list`、`cloud_run_logs`（皆包裝 `gcloud` 指令，可帶 `project_id/region`）
->  - 使用前務必 `gcloud auth login` 並 `gcloud config set project ...`，避免憑證/配額問題。
+```
+nooko-quotation-guardian/         # Better-T Stack monorepo
+├── apps/web/                     # React 前端
+├── apps/server/                  # Hono + tRPC 後端
+├── packages/shared/              # 共用型別
+├── packages/construction-knowledge/  # 工程知識庫
+└── specs/003-quotation-guardian/  # 規格文件
+    ├── PRODUCT_BRIEF.md          # 產品定位與商業模式
+    ├── plan.md                   # 技術架構與開發計畫
+    └── schema-design.md          # 資料庫 schema 設計
+```
 
 ---
 
-## ✅ 任務開始前自我檢查 (Final Self-Check)
+## 核心開發原則
 
-- [ ] 我已理解新的「AI 裝潢顧問」專案願景與核心架構。
-- [ ] 我會遵循「效率優先」原則，謹慎使用 `read_file`。
-- [ ] 我承諾會**即時更新** `DEVELOPMENT_LOG.md`。
-- [ ] 我將遵循 `add` -> `commit` -> `push` -> `gcloud` 的標準化部署流程。
+1. **統一語言**: 所有回覆、註解和日誌一律使用**繁體中文**
+2. **Conventional Commits**: `feat:`, `fix:`, `docs:` 格式
+3. **Type-safe 優先**: 善用 tRPC + Drizzle 的 end-to-end type safety
+4. **測試**: 關鍵的規則引擎邏輯必須有單元測試
 
 ---
-*文件版本: 3.0*
-*上次更新: 2025-11-17*
-*主要變更: 全面更新以反映新的產品方向、架構原則、UI 風格及 AI 助理協作流程。*
+
+## 專案上下文快速查閱
+
+- **產品定位?** → `specs/003-quotation-guardian/PRODUCT_BRIEF.md`
+- **技術架構?** → `specs/003-quotation-guardian/plan.md`
+- **DB Schema?** → `specs/003-quotation-guardian/schema-design.md`
+- **舊版參考?** → `specs/002-interior-deco-ai/` (已棄用，部分知識保留)
+- **工程知識?** → `analysis-service/src/agents/construction_translator.py` (待移植)
+
+---
+
+*文件版本: 4.0*
+*上次更新: 2026-03-05*
+*主要變更: 產品方向 pivot 為 B2B 報價防呆守衛，技術棧改為 Better-T Stack (TypeScript 全端)*
